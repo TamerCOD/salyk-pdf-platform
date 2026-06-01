@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}ИНН-парсер salyk.kg{% endblock %}
+{% block content %}
+
+<section class="hero">
+  <h1>ИНН-парсер по cabinet.salyk.kg</h1>
+  <p class="lead">
+    Введите список ИНН (через пробел, запятую или с новой строки) либо загрузите
+    Excel-файл, где в первой колонке стоят ИНН. Платформа запросит каждый ИНН
+    в API ГНС и вернёт Excel с наименованиями и кодом УГНС.
+  </p>
+</section>
+
+<section class="card">
+  <form action="{{ url_for('inn_lookup_route') }}" method="post" enctype="multipart/form-data">
+    <label class="field">
+      <span class="label">Список ИНН (опционально)</span>
+      <textarea name="inns_text" rows="6" placeholder="01303202410745, 02804202012345&#10;01405197654321"></textarea>
+      <small class="hint">10+ цифр на ИНН. Можно вперемешку через пробел, запятую, точку с запятой или с новой строки.</small>
+    </label>
+
+    <label class="field">
+      <span class="label">Excel-файл с ИНН в первой колонке (опционально)</span>
+      <input type="file" name="excel" accept=".xlsx,.xlsm">
+      <small class="hint">Заголовок ("ИНН"/"INN"/"ТИН") пропускается автоматически.</small>
+    </label>
+
+    <button type="submit" class="btn btn-primary">Получить наименования</button>
+  </form>
+  <p class="hint">Между запросами пауза 0.4 сек. Лимит 500 ИНН за раз. На 100 ИНН уходит ~45 секунд — не закрывайте вкладку.</p>
+</section>
+
+{% endblock %}

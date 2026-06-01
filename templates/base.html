@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}ZVN-222 — платформа{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <div class="container">
+    <a class="brand" href="{{ url_for('index') }}">ZVN&nbsp;STI-222</a>
+    <nav>
+      <a href="{{ url_for('index') }}" {% if request.endpoint == 'index' %}class="active"{% endif %}>PDF-генератор</a>
+      <a href="{{ url_for('inn_page') }}" {% if request.endpoint == 'inn_page' %}class="active"{% endif %}>ИНН-парсер</a>
+    </nav>
+  </div>
+</header>
+
+<main class="container">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flashes">
+        {% for cat, msg in messages %}
+          <div class="flash flash-{{ cat }}">{{ msg }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <span>Платформа для заполнения формы ZVN STI-222 и поиска ИНН на salyk.kg</span>
+  </div>
+</footer>
+</body>
+</html>

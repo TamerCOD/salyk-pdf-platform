@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}ИНН — результаты ({{ total }}){% endblock %}
+{% block content %}
+
+<section class="hero">
+  <h1>Готово ✓</h1>
+  <p class="lead">
+    Запрошено ИНН: <strong>{{ total }}</strong>.
+    Найдено: <strong>{{ found }}</strong>. Не найдено: <strong>{{ not_found }}</strong>. Ошибок: <strong>{{ errors }}</strong>.
+  </p>
+</section>
+
+<section class="card">
+  <h2>Скачать результат</h2>
+  <p class="actions">
+    <a class="btn btn-primary" href="{{ url_for('download', token=token) }}">Скачать {{ archive_name }}</a>
+    <a class="btn btn-link" href="{{ url_for('inn_page') }}">← Ещё запрос</a>
+  </p>
+  <p class="hint">Файл доступен ~30 минут.</p>
+</section>
+
+<section class="card muted">
+  <h2>Превью</h2>
+  <table class="table">
+    <thead>
+      <tr><th>ИНН</th><th>Наименование</th><th>Код УГНС</th><th>Статус</th></tr>
+    </thead>
+    <tbody>
+    {% for r in rows %}
+      <tr class="row-{% if r.name %}ok{% elif r.status == 'не найдено' %}warn{% else %}err{% endif %}">
+        <td><code>{{ r.inn }}</code></td>
+        <td>{{ r.name }}</td>
+        <td>{{ r.rayon }}</td>
+        <td>{{ r.status }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% endblock %}

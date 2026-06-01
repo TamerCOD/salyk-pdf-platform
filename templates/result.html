@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Готово — {{ total_rows }} строк{% endblock %}
+{% block content %}
+
+<section class="hero">
+  <h1>Готово ✓</h1>
+  <p class="lead">
+    Обработано строк: <strong>{{ total_rows }}</strong>.
+    {% if mode == 'individual' %}
+      Сформированы отдельные PDF на каждую строку.
+    {% elif mode == 'single' %}
+      Сформированы отдельные PDF + склейка по колонке <strong>{{ group_col }} — {{ group_col_label }}</strong>.
+    {% elif mode == 'all' %}
+      Сформированы отдельные PDF + склейка по всем содержательным колонкам.
+    {% endif %}
+  </p>
+</section>
+
+<section class="card">
+  <h2>Скачать архив</h2>
+  <p>В архиве: папка <code>individual/</code> с отдельными PDF{% if mode != 'individual' %}, а также папки <code>grouped_by_*/</code> с объединёнными PDF{% endif %}.</p>
+  <p class="actions">
+    <a class="btn btn-primary" href="{{ url_for('download', token=token) }}">Скачать {{ archive_name }}</a>
+    <a class="btn btn-link" href="{{ url_for('index') }}">← Сделать ещё</a>
+  </p>
+  <p class="hint">Архив доступен ~30 минут, потом удаляется с сервера.</p>
+</section>
+
+{% if summary %}
+<section class="card muted">
+  <h2>Группы</h2>
+  <table class="table">
+    <thead>
+      <tr><th>Колонка</th><th>Значение</th><th>Строк</th></tr>
+    </thead>
+    <tbody>
+      {% for label, key, count in summary %}
+        <tr><td>{{ label }}</td><td>{{ key }}</td><td>{{ count }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+{% endblock %}
