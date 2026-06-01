@@ -1,71 +1,112 @@
 {% extends "base.html" %}
-{% block title %}PDF-генератор ZVN STI-222{% endblock %}
+{% block title %}./pdf — ZVN-222 generator{% endblock %}
 {% block content %}
 
 <section class="hero">
-  <h1>Автозаполнение формы ZVN STI-222</h1>
+  <h1>ZVN STI-222 :: auto-fill engine<span class="cursor"></span></h1>
   <p class="lead">
-    Загрузите Excel-файл со списком налогоплательщиков — платформа сгенерирует
-    отдельный заполненный PDF на каждую строку, а также (опционально) склеит
-    PDF-файлы с одинаковым значением в выбранной колонке в один общий PDF.
+    Загрузите Excel-файл — система сгенерирует отдельный заполненный PDF на каждую
+    строку. Опционально — склейка PDF по выбранной колонке (например, все строки
+    с одним и тем же <code>Наименованием налогового органа</code> попадут в один многостраничный PDF).
   </p>
 </section>
 
-<section class="card">
-  <h2>1. Скачайте шаблон</h2>
-  <p>Если у вас нет готового файла — начните с шаблона. Структура колонок A–U фиксирована.</p>
-  <p class="actions">
-    <a class="btn btn-outline" href="{{ url_for('download_template') }}">Скачать data_template.xlsx</a>
-    <a class="btn btn-link" href="{{ url_for('download_form_template') }}">Шаблон form.pdf</a>
-  </p>
+<section class="card" data-title="STEP_01" data-host="@tima:/templates">
+  <div class="card-body">
+    <h2>Скачать шаблон Excel</h2>
+    <p>Структура колонок <code>A..U</code> зафиксирована. Не переименовывайте и не меняйте порядок —
+       скрипт читает по буквам столбцов, а не по заголовкам.</p>
+    <p class="actions">
+      <a class="btn btn-outline" href="{{ url_for('download_template') }}">↓ data_template.xlsx</a>
+      <a class="btn btn-link" href="{{ url_for('download_form_template') }}">+ исходный form.pdf</a>
+    </p>
+    <div class="tips">
+      <strong>// быстрые подсказки по колонкам:</strong>
+      <ul>
+        <li><code>B</code>, <code>N</code> — ИНН: <strong>ровно 14 цифр одной строкой</strong>, без пробелов и тире.</li>
+        <li><code>D</code> — код налогового органа: <strong>3 цифры</strong> (009, 222, …).</li>
+        <li><code>G</code>, <code>I</code>, <code>K</code>, <code>Q</code>, <code>T</code> — даты: формат ячейки Excel <em>Дата</em>, либо текст <code>15.03.2026</code>, либо <code>15032026</code>.</li>
+        <li><code>L</code>, <code>M</code>, <code>O</code>, <code>P</code> — пишите как: <em>должность + ФИО</em> через запятую (пример: <code>Начальник УГНС, Иванов И.И.</code>).</li>
+        <li>Пустые ячейки в форме оставляются пустыми. Скрипт пропускает строки, где совсем нет данных в <code>B..U</code>.</li>
+      </ul>
+    </div>
+  </div>
 </section>
 
-<section class="card">
-  <h2>2. Загрузите заполненный Excel</h2>
-  <form action="{{ url_for('generate') }}" method="post" enctype="multipart/form-data">
-    <label class="field">
-      <span class="label">Excel-файл (.xlsx)</span>
-      <input type="file" name="excel" accept=".xlsx,.xlsm" required>
-    </label>
-
-    <fieldset class="field">
-      <legend class="label">Режим выгрузки</legend>
-      <label class="radio">
-        <input type="radio" name="mode" value="individual" checked>
-        <span><strong>Только отдельные PDF</strong> — по одному файлу на строку (как раньше).</span>
+<section class="card" data-title="STEP_02" data-host="@tima:/generate">
+  <div class="card-body">
+    <h2>Загрузить заполненный Excel</h2>
+    <form action="{{ url_for('generate') }}" method="post" enctype="multipart/form-data">
+      <label class="field">
+        <span class="label">Excel-файл (.xlsx)</span>
+        <input type="file" name="excel" accept=".xlsx,.xlsm" required>
+        <small class="hint">До 30 МБ. Заголовок — в строке 1, данные с строки 2 и ниже.</small>
       </label>
-      <label class="radio">
-        <input type="radio" name="mode" value="single">
-        <span><strong>Сгруппировать по одной колонке</strong> — выберите её ниже. В итоговом ZIP будут и отдельные PDF, и склеенные по группам.</span>
-      </label>
-      <label class="radio">
-        <input type="radio" name="mode" value="all">
-        <span><strong>Все варианты сразу</strong> — отдельные PDF + склейка по каждой содержательной колонке (B–U).</span>
-      </label>
-    </fieldset>
 
-    <label class="field" id="group-col-field">
-      <span class="label">Колонка для группировки</span>
-      <select name="group_column">
-        {% for letter, name in columns %}
-          <option value="{{ letter }}" {% if letter == 'E' %}selected{% endif %}>{{ letter }} — {{ name }}</option>
-        {% endfor %}
-      </select>
-      <small class="hint">Используется только в режиме «Сгруппировать по одной колонке».</small>
-    </label>
+      <fieldset class="field">
+        <legend class="label">Режим выгрузки</legend>
 
-    <button type="submit" class="btn btn-primary">Сгенерировать PDF</button>
-  </form>
+        <label class="radio">
+          <input type="radio" name="mode" value="individual" checked>
+          <span>
+            <strong>Только отдельные PDF</strong> — один файл на каждую строку.<br>
+            <small class="hint" style="margin-top:2px">Имя файла: <code>NNN_&lt;ФИО&gt;.pdf</code>. Используется поведение классического fill_form.py.</small>
+          </span>
+        </label>
+
+        <label class="radio">
+          <input type="radio" name="mode" value="single">
+          <span>
+            <strong>Сгруппировать по одной колонке</strong> — выберите её ниже.<br>
+            <small class="hint" style="margin-top:2px">В ZIP будут и отдельные PDF в <code>individual/</code>, и склеенные по группам в <code>grouped_by_X/</code>. Для каждого уникального значения колонки — отдельный многостраничный PDF.</small>
+          </span>
+        </label>
+
+        <label class="radio">
+          <input type="radio" name="mode" value="all">
+          <span>
+            <strong>Все варианты сразу</strong> — отдельные PDF + склейка по каждой содержательной колонке <code>B..U</code>.<br>
+            <small class="hint" style="margin-top:2px">Тяжёлый режим (≈20 наборов группировок). Полезно для отчётности — сразу видны все срезы.</small>
+          </span>
+        </label>
+      </fieldset>
+
+      <label class="field" id="group-col-field">
+        <span class="label">Колонка для группировки</span>
+        <select name="group_column">
+          {% for letter, name in columns %}
+            <option value="{{ letter }}" {% if letter == 'E' %}selected{% endif %}>{{ letter }} — {{ name }}</option>
+          {% endfor %}
+        </select>
+        <small class="hint">Используется только в режиме «Сгруппировать по одной колонке». По умолчанию — <code>E</code> (Наименование налогового органа).</small>
+      </label>
+
+      <button type="submit" class="btn btn-primary">execute generation</button>
+    </form>
+  </div>
 </section>
 
-<section class="card muted">
-  <h2>Как это работает</h2>
-  <ol>
-    <li>Платформа читает Excel с колонками A–U (структура из шаблона).</li>
-    <li>На каждую строку накладывает значения на <code>form.pdf</code> в нужных координатах.</li>
-    <li>В режиме группировки склеивает PDF-ки, где значение в выбранной колонке совпадает, в один многостраничный PDF.</li>
-    <li>Возвращает один ZIP-архив: <code>individual/*.pdf</code> + (опционально) <code>grouped_by_X/*.pdf</code>.</li>
-  </ol>
+<section class="card muted" data-title="MANUAL" data-host="@tima:/help">
+  <div class="card-body">
+    <h2>Как это работает (под капотом)</h2>
+    <ol>
+      <li>Excel читается через <code>openpyxl</code> по буквам колонок <code>A..U</code> — не по заголовкам.</li>
+      <li>На каждую строку <code>reportlab</code> рисует прозрачный overlay-PDF в нужных координатах поверх <code>form.pdf</code>.</li>
+      <li><code>pypdf</code> склеивает overlay с шаблоном — оригинальные линии и подписи формы остаются неизменными.</li>
+      <li>В режиме группировки строки с одинаковым значением выбранной колонки попадают в один многостраничный PDF.</li>
+      <li>Всё упаковывается в ZIP и отдаётся одной ссылкой. Архив доступен ~30 минут после генерации.</li>
+    </ol>
+
+    <div class="tips warn">
+      <strong>// важное:</strong>
+      <ul>
+        <li>Подписи и М.П. не печатаются — ставятся от руки на бумаге.</li>
+        <li>Если ИНН ввели <strong>12</strong> цифр вместо 14 — последние 2 знакоместа в PDF останутся пустыми. Скрипт не дополняет нулями.</li>
+        <li>Для длинных значений в табличных ячейках шрифт автоматически уменьшается, при необходимости текст переносится в 2 строки.</li>
+        <li>Если значение в колонке группировки пустое — такие строки попадают в группу <code>_пусто_</code>.</li>
+      </ul>
+    </div>
+  </div>
 </section>
 
 <script>
@@ -74,7 +115,7 @@
   const colField = document.getElementById('group-col-field');
   function syncVisibility() {
     const val = document.querySelector('input[name="mode"]:checked').value;
-    colField.style.opacity = val === 'single' ? '1' : '0.4';
+    colField.style.opacity = val === 'single' ? '1' : '0.35';
     colField.querySelector('select').disabled = val !== 'single';
   }
   radios.forEach(r => r.addEventListener('change', syncVisibility));

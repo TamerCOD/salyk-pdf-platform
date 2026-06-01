@@ -1,41 +1,68 @@
 {% extends "base.html" %}
-{% block title %}ИНН — результаты ({{ total }}){% endblock %}
+{% block title %}INN result :: {{ total }} requests{% endblock %}
 {% block content %}
 
 <section class="hero">
-  <h1>Готово ✓</h1>
-  <p class="lead">
-    Запрошено ИНН: <strong>{{ total }}</strong>.
-    Найдено: <strong>{{ found }}</strong>. Не найдено: <strong>{{ not_found }}</strong>. Ошибок: <strong>{{ errors }}</strong>.
-  </p>
+  <h1>lookup_complete<span class="cursor"></span></h1>
+  <p class="lead">Запрошено ИНН: <strong>{{ total }}</strong>. Ниже разбивка по статусам.</p>
 </section>
 
-<section class="card">
-  <h2>Скачать результат</h2>
-  <p class="actions">
-    <a class="btn btn-primary" href="{{ url_for('download', token=token) }}">Скачать {{ archive_name }}</a>
-    <a class="btn btn-link" href="{{ url_for('inn_page') }}">← Ещё запрос</a>
-  </p>
-  <p class="hint">Файл доступен ~30 минут.</p>
+<section class="card" data-title="STATS" data-host="@tima:/inn">
+  <div class="card-body">
+    <div class="stats">
+      <div class="stat">
+        <div class="label">всего</div>
+        <div class="value">{{ total }}</div>
+      </div>
+      <div class="stat">
+        <div class="label">найдено</div>
+        <div class="value">{{ found }}</div>
+      </div>
+      <div class="stat">
+        <div class="label">не найдено</div>
+        <div class="value">{{ not_found }}</div>
+      </div>
+      <div class="stat">
+        <div class="label">ошибок</div>
+        <div class="value">{{ errors }}</div>
+      </div>
+    </div>
+
+    <p class="actions" style="margin-top:18px">
+      <a class="btn btn-primary" href="{{ url_for('download', token=token) }}">↓ {{ archive_name }}</a>
+      <a class="btn btn-link" href="{{ url_for('inn_page') }}">← новый batch</a>
+    </p>
+
+    <div class="tips">
+      <strong>// что дальше:</strong>
+      <ul>
+        <li>Файл доступен ~30 минут, потом удаляется. Сохраните локально.</li>
+        <li>В Excel зелёные строки = найдено, жёлтые = не найдено, красные = ошибка сети/HTTP.</li>
+        <li>Скопируйте найденные наименования в колонку <code>C</code> шаблона PDF-генератора, а код УГНС из <code>rayon</code> — в колонку <code>D</code>.</li>
+      </ul>
+    </div>
+  </div>
 </section>
 
-<section class="card muted">
-  <h2>Превью</h2>
-  <table class="table">
-    <thead>
-      <tr><th>ИНН</th><th>Наименование</th><th>Код УГНС</th><th>Статус</th></tr>
-    </thead>
-    <tbody>
-    {% for r in rows %}
-      <tr class="row-{% if r.name %}ok{% elif r.status == 'не найдено' %}warn{% else %}err{% endif %}">
-        <td><code>{{ r.inn }}</code></td>
-        <td>{{ r.name }}</td>
-        <td>{{ r.rayon }}</td>
-        <td>{{ r.status }}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+<section class="card muted" data-title="PREVIEW" data-host="@tima:/inn/log">
+  <div class="card-body">
+    <h2>Превью результатов</h2>
+    <table class="table">
+      <thead>
+        <tr><th>ИНН</th><th>Наименование</th><th>Код УГНС</th><th>Статус</th></tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+        <tr class="row-{% if r.name %}ok{% elif r.status == 'не найдено' %}warn{% else %}err{% endif %}">
+          <td><code>{{ r.inn }}</code></td>
+          <td>{{ r.name }}</td>
+          <td>{{ r.rayon }}</td>
+          <td>{{ r.status }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
 
 {% endblock %}

@@ -1,33 +1,64 @@
 {% extends "base.html" %}
-{% block title %}ИНН-парсер salyk.kg{% endblock %}
+{% block title %}./inn — salyk.kg lookup{% endblock %}
 {% block content %}
 
 <section class="hero">
-  <h1>ИНН-парсер по cabinet.salyk.kg</h1>
+  <h1>cabinet.salyk.kg :: INN lookup<span class="cursor"></span></h1>
   <p class="lead">
-    Введите список ИНН (через пробел, запятую или с новой строки) либо загрузите
-    Excel-файл, где в первой колонке стоят ИНН. Платформа запросит каждый ИНН
-    в API ГНС и вернёт Excel с наименованиями и кодом УГНС.
+    Введите список ИНН (через пробел, запятую или с новой строки) или загрузите Excel,
+    где в первой колонке стоят ИНН. Платформа дернёт API ГНС КР
+    <code>/TinCheck/GetTaxPayer</code> и вернёт Excel с наименованием налогоплательщика и кодом УГНС.
   </p>
 </section>
 
-<section class="card">
-  <form action="{{ url_for('inn_lookup_route') }}" method="post" enctype="multipart/form-data">
-    <label class="field">
-      <span class="label">Список ИНН (опционально)</span>
-      <textarea name="inns_text" rows="6" placeholder="01303202410745, 02804202012345&#10;01405197654321"></textarea>
-      <small class="hint">10+ цифр на ИНН. Можно вперемешку через пробел, запятую, точку с запятой или с новой строки.</small>
-    </label>
+<section class="card" data-title="QUERY" data-host="@tima:/inn/lookup">
+  <div class="card-body">
+    <form action="{{ url_for('inn_lookup_route') }}" method="post" enctype="multipart/form-data">
+      <label class="field">
+        <span class="label">Список ИНН (вариант 1)</span>
+        <textarea name="inns_text" rows="6"
+          placeholder="01303202410745, 02804202012345&#10;01405197654321&#10;10512197000240"></textarea>
+        <small class="hint">10+ цифр на ИНН. Разделители — пробел, запятая, точка с запятой или новая строка. Заголовки типа «ИНН» отфильтровываются автоматически.</small>
+      </label>
 
-    <label class="field">
-      <span class="label">Excel-файл с ИНН в первой колонке (опционально)</span>
-      <input type="file" name="excel" accept=".xlsx,.xlsm">
-      <small class="hint">Заголовок ("ИНН"/"INN"/"ТИН") пропускается автоматически.</small>
-    </label>
+      <label class="field">
+        <span class="label">Excel-файл (вариант 2)</span>
+        <input type="file" name="excel" accept=".xlsx,.xlsm">
+        <small class="hint">ИНН должны лежать в первой колонке (A). Можно использовать оба варианта — текст и файл — они объединятся, дубликаты будут удалены.</small>
+      </label>
 
-    <button type="submit" class="btn btn-primary">Получить наименования</button>
-  </form>
-  <p class="hint">Между запросами пауза 0.4 сек. Лимит 500 ИНН за раз. На 100 ИНН уходит ~45 секунд — не закрывайте вкладку.</p>
+      <button type="submit" class="btn btn-primary">request batch</button>
+    </form>
+
+    <div class="tips">
+      <strong>// тайминги и лимиты:</strong>
+      <ul>
+        <li>Между запросами пауза <code>0.4 сек</code> — чтобы не словить бан от ГНС.</li>
+        <li>Лимит: <strong>500 ИНН</strong> за один запрос. Больше — бейте на части.</li>
+        <li>На 100 ИНН уходит ~45 секунд, на 500 ~3.5 минуты. <strong>Не закрывайте вкладку</strong>, пока идёт обработка.</li>
+        <li>Если ИНН не найден или вернул HTTP-ошибку — строка попадёт в выгрузку со статусом <code>не найдено</code> / <code>HTTP NNN</code> и подсветится цветом.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="card muted" data-title="USE_CASE" data-host="@tima:/help">
+  <div class="card-body">
+    <h2>Зачем это нужно</h2>
+    <ol>
+      <li>У вас есть список ИНН без наименований — нужно подтянуть «ФИО / название организации» из ГНС.</li>
+      <li>Перед массовой генерацией ZVN-222 вы хотите сверить, что все ИНН живые и корректные.</li>
+      <li>Кодом УГНС (поле <code>rayon</code>) можно сразу заполнить колонку <code>D</code> в шаблоне PDF-генератора.</li>
+    </ol>
+
+    <div class="tips warn">
+      <strong>// важно:</strong>
+      <ul>
+        <li>Это публичный API ГНС, который используется на форме регистрации <code>cabinet.salyk.kg/account/register</code>. Никаких особых прав не нужно, но не злоупотребляйте — серверу не нравятся залпы.</li>
+        <li>Кэширования на нашей стороне нет — каждый запрос идёт на ГНС. Если запрашиваете один и тот же ИНН повторно — это всегда новый сетевой вызов.</li>
+      </ul>
+    </div>
+  </div>
 </section>
 
 {% endblock %}
