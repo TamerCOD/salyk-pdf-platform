@@ -1,51 +1,106 @@
 {% extends "base.html" %}
-{% block title %}DONE :: {{ total_rows }} rows processed{% endblock %}
+{% block title %}EXFIL COMPLETE :: {{ total_rows }} rows{% endblock %}
 {% block content %}
 
+<div class="danger-bar no-stripes">// breach successful · {{ total_rows }} pdfs forged · clean traces and disconnect</div>
+
 <section class="hero">
-  <h1>generation_complete<span class="cursor"></span></h1>
+  <h1><span class="glitch" data-text="// generation_complete">// generation_complete</span><span class="cursor"></span></h1>
   <p class="lead">
-    Обработано строк: <strong>{{ total_rows }}</strong>.
+    На входе строк: <strong>{{ total_input or total_rows }}</strong>,
+    обработано: <strong>{{ unique_count or total_rows }}</strong>,
+    из salyk.kg подставлено наименований: <strong>{{ lookup_filled or 0 }}</strong> из <strong>{{ lookup_total or 0 }}</strong> уникальных ИНН.
+    {% if duplicates %}Дублей по ИНН: <strong style="color:#ff5560">{{ duplicates|length }}</strong>.{% endif %}
     {% if mode == 'individual' %}
-      Сформированы отдельные PDF на каждую строку.
+      Режим: <strong>отдельные PDF</strong>.
     {% elif mode == 'single' %}
-      Сформированы отдельные PDF + склейка по колонке <code>{{ group_col }}</code> — <strong>{{ group_col_label }}</strong>.
+      Режим: склейка по колонке <strong>{{ group_col }} — {{ group_col_label }}</strong>.
     {% elif mode == 'all' %}
-      Сформированы отдельные PDF + склейка по всем содержательным колонкам.
+      Режим: <strong>все варианты группировки сразу</strong>.
     {% endif %}
+    {% if dedup %}<br>Дубли <strong>удалены</strong> (toggle ВКЛ).{% else %}<br>Дубли <strong>сохранены</strong> (toggle ВЫКЛ).{% endif %}
   </p>
 </section>
 
-<section class="card" data-title="ARCHIVE" data-host="@tima:/download">
+<section class="card" data-title="STATS" data-host="@tima:/result">
+  <span class="classified-stamp">DECLASSIFIED</span>
   <div class="card-body">
-    <h2>Скачать архив</h2>
-    <p>Структура внутри ZIP:</p>
-    <ul>
-      <li><code>individual/NNN_&lt;ФИО&gt;.pdf</code> — по одному PDF на каждую строку.</li>
-      {% if mode != 'individual' %}
-      <li><code>grouped_by_X_&lt;название&gt;/&lt;значение&gt;.pdf</code> — склеенные PDF.
-          В имени папки — буква колонки и её заголовок, в имени файла — само значение.</li>
-      {% endif %}
-    </ul>
+    <div class="stats">
+      <div class="stat">
+        <div class="label">строк на входе</div>
+        <div class="value">{{ total_input or total_rows }}</div>
+      </div>
+      <div class="stat">
+        <div class="label">в выгрузке</div>
+        <div class="value">{{ total_rows }}</div>
+      </div>
+      <div class="stat">
+        <div class="label">дублей</div>
+        <div class="value" style="color:{% if duplicates %}#ff5560{% else %}var(--text-bright){% endif %}; text-shadow:{% if duplicates %}0 0 6px rgba(255,0,32,0.6){% else %}var(--accent-soft-glow){% endif %};">{{ duplicates|length if duplicates else 0 }}</div>
+      </div>
+      <div class="stat">
+        <div class="label">уникальных ИНН</div>
+        <div class="value">{{ lookup_total or 0 }}</div>
+      </div>
+      <div class="stat">
+        <div class="label">найдено в ГНС</div>
+        <div class="value">{{ lookup_filled or 0 }}</div>
+      </div>
+    </div>
 
-    <p class="actions">
-      <a class="btn btn-primary" href="{{ url_for('download', token=token) }}">↓ {{ archive_name }}</a>
-      <a class="btn btn-link" href="{{ url_for('index') }}">← сделать ещё одну выгрузку</a>
+    <p class="actions" style="margin-top:18px">
+      <a class="btn btn-primary" href="{{ url_for('download', token=token) }}">↓ download {{ archive_name }}</a>
+      <a class="btn btn-link" href="{{ url_for('index') }}">← новый запрос</a>
     </p>
 
     <div class="tips">
-      <strong>// подсказки:</strong>
+      <strong>// что внутри ZIP:</strong>
       <ul>
-        <li>Архив хранится на сервере ~30 минут, потом удаляется автоматически.</li>
-        <li>Если переоткроете эту страницу из истории — ссылка ещё рабочая, пока не вышел TTL.</li>
-        <li>Распаковывайте ZIP <strong>в кратко-именованную папку</strong> (например, <code>C:\zvn\</code>) — Windows иногда ругается на длинные пути.</li>
+        <li><code>individual/NNN_&lt;ФИО&gt;.pdf</code> — по одному PDF на каждую строку.</li>
+        {% if mode != 'individual' %}
+        <li><code>grouped_by_X_&lt;название&gt;/&lt;значение&gt;.pdf</code> — склеенные PDF. В имени папки — буква колонки и её заголовок, в имени файла — само значение.</li>
+        {% endif %}
+        <li>Архив доступен ~30 минут после первого скачивания. Сохраните локально.</li>
+        <li>Распаковывайте в коротко-именованную папку (<code>C:\zvn\</code>) — Windows иногда не любит длинные пути.</li>
       </ul>
     </div>
   </div>
 </section>
 
+{% if duplicates %}
+<section class="card" data-title="DUPLICATES_REPORT" data-host="@tima:/result/dups">
+  <span class="classified-stamp" style="border-color:#ff0020; color:#ff5560">DUPS · {{ duplicates|length }}</span>
+  <div class="card-body">
+    <h2 style="color:#ff5560; text-shadow: 0 0 4px rgba(255,0,32,0.6);">⚠ Дублирующиеся ИНН во входных данных</h2>
+    <p>Эти ИНН встречались <strong>больше одного раза</strong> в колонке <code>B</code> вашего Excel.
+       Лишних вхождений в сумме: <strong>{{ duplicates|sum(attribute=1) - duplicates|length }}</strong>.
+       {% if dedup %}В режиме <em>dedup ВКЛ</em> каждый из них попал в выгрузку ровно один раз.
+       {% else %}В режиме <em>dedup ВЫКЛ</em> для каждого вхождения сделан свой PDF.{% endif %}</p>
+
+    <div class="dup-grid">
+      {% for inn, n in duplicates %}
+        <div class="dup-tile">
+          <code>{{ inn }}</code>
+          <span class="n">×{{ n }}</span>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="tips warn" style="margin-top:14px">
+      <strong>// что с ними делать:</strong>
+      <ul>
+        <li>Если повторы вам нужны (по 1 ИНН в каждом подрядчике/документе) — оставьте всё как есть, тогда не активируйте toggle.</li>
+        <li>Если нужно по одному PDF на уникальный ИНН — на следующем запуске <strong>активируйте toggle «Удалить дубликаты»</strong>.</li>
+        <li>Чтобы почистить дубли в исходном Excel: выделить колонку <code>B</code> → <em>Данные → Удалить дубликаты</em>.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+{% endif %}
+
 {% if summary %}
-<section class="card muted" data-title="GROUPS" data-host="@tima:/summary">
+<section class="card muted" data-title="GROUPS" data-host="@tima:/result/groups">
+  <span class="classified-stamp">FOR REVIEW</span>
   <div class="card-body">
     <h2>Сводка по группам</h2>
     <p>Каждая строка — отдельный склеенный PDF в архиве.</p>

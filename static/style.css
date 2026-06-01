@@ -728,6 +728,202 @@ body.alert-mode #bar {
   box-shadow: 0 0 14px #ff0020 !important;
 }
 
+/* ===========================================================
+   I N T R O   O V E R L A Y
+   Phase 1: warning. Phase 2: black. Phase 3: credit emerges.
+   =========================================================== */
+
+#intro-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  overflow: hidden;
+}
+body.intro-playing #intro-overlay {
+  display: flex;
+  animation: intro-fade-out 0.7s 7.1s forwards;
+  pointer-events: all;
+}
+body.intro-playing { overflow: hidden; }
+
+@keyframes intro-fade-out {
+  to { opacity: 0; visibility: hidden; }
+}
+
+.intro-phase {
+  position: absolute;
+  opacity: 0;
+  text-align: center;
+  width: 100%;
+  padding: 0 20px;
+}
+
+/* === PHASE 1: warning (0 — 3.4s) === */
+.intro-warning {
+  animation: intro-warn 3.5s 0s forwards;
+}
+.intro-warn-skull {
+  font-size: 100px;
+  color: #ff0020;
+  text-shadow: 0 0 30px #ff0020, 0 0 60px #ff0020, 0 0 90px rgba(255,0,32,0.4);
+  margin-bottom: 8px;
+  animation: skull-pulse 0.4s infinite alternate;
+}
+.intro-warn-big {
+  font-family: var(--mono);
+  font-size: clamp(60px, 14vw, 180px);
+  font-weight: 900;
+  letter-spacing: 12px;
+  color: #ff0020;
+  text-shadow: 0 0 25px #ff0020, 0 0 50px rgba(255,0,32,0.5);
+  margin: 0 0 18px;
+  animation: shake-hard 0.07s infinite alternate;
+}
+.intro-warn-sub {
+  font-family: var(--mono);
+  font-size: clamp(18px, 2.4vw, 28px);
+  color: #fff;
+  letter-spacing: 3px;
+  text-shadow: 0 0 6px #ff0020;
+  margin-bottom: 22px;
+  line-height: 1.5;
+}
+.intro-warn-sub strong {
+  color: #ff5560;
+  text-shadow: 0 0 12px #ff0020;
+}
+.intro-warn-stripe {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 8px 24px;
+  background: repeating-linear-gradient(
+    -45deg,
+    #1a0006 0, #1a0006 14px,
+    #ff0020 14px, #ff0020 28px
+  );
+  color: #fff;
+  text-shadow: 0 0 6px #000;
+  font-weight: 900;
+  font-size: 13px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+@keyframes skull-pulse {
+  from { transform: scale(1); text-shadow: 0 0 30px #ff0020, 0 0 60px #ff0020; }
+  to   { transform: scale(1.08); text-shadow: 0 0 50px #ff0020, 0 0 100px #ff0020; }
+}
+@keyframes shake-hard {
+  to { transform: translate(3px, -2px) skew(-1deg, 0); }
+}
+@keyframes intro-warn {
+  0%   { opacity: 0; transform: scale(0.5); }
+  10%  { opacity: 1; transform: scale(1.05); }
+  18%  { transform: scale(1); }
+  85%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+
+/* === PHASE 2 (3.4 — 3.8s): между ними чёрная пауза (фоновый overlay уже чёрный) === */
+
+/* === PHASE 3: credit emerging (3.8 — 7.1s) === */
+.intro-credit {
+  animation: intro-credit 3.4s 3.7s forwards;
+}
+.intro-credit-line {
+  font-family: var(--mono);
+  font-size: 14px;
+  letter-spacing: 8px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 18px;
+}
+.intro-credit-big {
+  font-family: var(--mono);
+  font-size: clamp(50px, 10vw, 130px);
+  font-weight: 900;
+  letter-spacing: 6px;
+  color: var(--text-bright);
+  text-shadow: 0 0 25px #00ff41, 0 0 50px #00ff41, 0 0 90px rgba(0,255,65,0.4);
+}
+.intro-credit-name {
+  color: #fff;
+  text-shadow: 0 0 12px #00ff41, 0 0 30px #00ff41;
+  display: inline-block;
+}
+@keyframes intro-credit {
+  0%   { opacity: 0; transform: scale(0.05) rotate(-1080deg); filter: blur(40px); }
+  35%  { opacity: 1; transform: scale(1.15) rotate(-30deg); filter: blur(4px); }
+  55%  { opacity: 1; transform: scale(0.95) rotate(10deg); filter: blur(0px); }
+  72%  { transform: scale(1.02) rotate(-3deg); }
+  85%  { transform: scale(1) rotate(0deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+/* ===========================================================
+   S C R E A M E R S
+   Random flash overlays during loading.
+   =========================================================== */
+
+.screamer {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  animation: screamer-flash 0.7s forwards;
+  background: rgba(0, 0, 0, 0);
+}
+.screamer.screamer-red {
+  animation: screamer-flash-red 0.7s forwards;
+}
+.screamer.screamer-green {
+  animation: screamer-flash-green 0.7s forwards;
+}
+.screamer-text {
+  font-family: var(--mono);
+  font-weight: 900;
+  font-size: clamp(50px, 9vw, 130px);
+  letter-spacing: 8px;
+  color: #fff;
+  text-shadow: 0 0 16px #000, 0 0 4px #000;
+  animation: screamer-zoom 0.7s forwards;
+  text-transform: uppercase;
+}
+.screamer.screamer-red .screamer-text  { color: #fff; text-shadow: 0 0 20px #ff0020, 0 0 6px #000; }
+.screamer.screamer-green .screamer-text { color: #00ff41; text-shadow: 0 0 20px #00ff41, 0 0 6px #000; }
+
+@keyframes screamer-flash {
+  0%   { opacity: 0; background: rgba(0, 0, 0, 0); }
+  18%  { opacity: 1; background: rgba(0, 0, 0, 0.92); }
+  60%  { opacity: 1; background: rgba(0, 0, 0, 0.88); }
+  100% { opacity: 0; background: rgba(0, 0, 0, 0); }
+}
+@keyframes screamer-flash-red {
+  0%   { opacity: 0; background: rgba(255, 0, 32, 0); }
+  18%  { opacity: 1; background: rgba(255, 0, 32, 0.92); }
+  60%  { opacity: 1; background: rgba(255, 0, 32, 0.85); }
+  100% { opacity: 0; background: rgba(255, 0, 32, 0); }
+}
+@keyframes screamer-flash-green {
+  0%   { opacity: 0; background: rgba(0, 0, 0, 0); }
+  18%  { opacity: 1; background: rgba(0, 35, 8, 0.95); }
+  60%  { opacity: 1; background: rgba(0, 35, 8, 0.9); }
+  100% { opacity: 0; background: rgba(0, 0, 0, 0); }
+}
+@keyframes screamer-zoom {
+  0%   { transform: scale(0.3) rotate(-8deg); opacity: 0; filter: blur(10px); }
+  25%  { transform: scale(1.35) rotate(2deg); opacity: 1; filter: blur(0); }
+  60%  { transform: scale(1.1) rotate(0deg); }
+  100% { transform: scale(1.4) rotate(-1deg); opacity: 0; }
+}
+
 /* Toggle switch */
 .toggle {
   display: inline-flex;

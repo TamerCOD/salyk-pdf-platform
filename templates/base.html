@@ -17,6 +17,23 @@
 <div class="alert-lamp bl" aria-hidden="true"></div>
 <div class="alert-lamp br" aria-hidden="true"></div>
 
+<!-- Intro overlay: показывается один раз за сессию (sessionStorage). -->
+<div id="intro-overlay" aria-hidden="true">
+  <div class="intro-phase intro-warning">
+    <div class="intro-warn-skull">☠</div>
+    <div class="intro-warn-big glitch" data-text="ОСТОРОЖНО">ОСТОРОЖНО</div>
+    <div class="intro-warn-sub">всё используешь<br><strong>на свой страх и риск</strong></div>
+    <div class="intro-warn-stripe">unauthorized · classified · top secret · clearance lvl 5</div>
+  </div>
+  <div class="intro-phase intro-credit">
+    <div class="intro-credit-line">presented by</div>
+    <div class="intro-credit-big">DEV by <span class="intro-credit-name">Tima-Sayak</span></div>
+  </div>
+</div>
+
+<!-- Контейнер для random скримеров -->
+<div id="screamer-host" aria-hidden="true"></div>
+
 <header class="topbar">
   <div class="container">
     <a class="brand" href="{{ url_for('index') }}">
@@ -32,8 +49,9 @@
       </span>
     </a>
     <nav>
-      <a href="{{ url_for('index') }}" {% if request.endpoint == 'index' or request.endpoint == 'generate' %}class="active"{% endif %}>./pdf</a>
-      <a href="{{ url_for('inn_page') }}" {% if request.endpoint in ('inn_page','inn_lookup_route') %}class="active"{% endif %}>./inn</a>
+      <a href="{{ url_for('index') }}" class="active">./terminal</a>
+      <a href="{{ url_for('download_template') }}">./template.xlsx</a>
+      <a href="{{ url_for('download_form_template') }}">./form.pdf</a>
     </nav>
   </div>
 </header>
@@ -100,6 +118,30 @@
     }
     setInterval(step, 55);
   })();
+
+  // ---------- Intro overlay (раз в сессию) ----------
+  (function () {
+    try {
+      if (sessionStorage.getItem('intro_shown_v2') === '1') return;
+      sessionStorage.setItem('intro_shown_v2', '1');
+    } catch (e) { /* приватный режим — покажем всегда */ }
+    document.body.classList.add('intro-playing');
+    setTimeout(() => document.body.classList.remove('intro-playing'), 7800);
+  })();
+
+  // ---------- Screamer (вызывается из других страниц) ----------
+  window.TIMA_screamer = function (msg, opts) {
+    opts = opts || {};
+    const host = document.getElementById('screamer-host');
+    if (!host) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'screamer';
+    if (opts.kind === 'red')   wrap.classList.add('screamer-red');
+    if (opts.kind === 'green') wrap.classList.add('screamer-green');
+    wrap.innerHTML = `<div class="screamer-text glitch" data-text="${msg}">${msg}</div>`;
+    host.appendChild(wrap);
+    setTimeout(() => wrap.remove(), 700);
+  };
 </script>
 
 </body>

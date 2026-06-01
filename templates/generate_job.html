@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}BREACH IN PROGRESS :: PDF generation{% endblock %}
+{% block content %}
+
+<div class="danger-bar">⚠ active operation · do not abort · trace countermeasures engaged ⚠</div>
+
+<section class="hero">
+  <h1><span class="glitch" data-text="// forging classified documents">// forging classified documents</span><span class="cursor"></span></h1>
+  <p class="lead">
+    Сессия активна. <strong>Фаза 1:</strong> опрос salyk.kg по уникальным ИНН.
+    <strong>Фаза 2:</strong> рендеринг PDF по каждой строке с подставленным наименованием.
+    <strong>Фаза 3:</strong> склейка и упаковка в ZIP. Можете закрыть вкладку — задача
+    продолжит работать. Адрес страницы выше — приходите за результатом позже.
+  </p>
+</section>
+
+<div class="grid-2">
+
+  <section class="card" data-title="LIVE_BREACH" data-host="@tima:/generate/job">
+    <span class="classified-stamp">EYES ONLY</span>
+    <div class="card-body">
+
+      <h2 id="phase-label" style="margin:0 0 14px">phase 1 // looking up <span class="cursor"></span></h2>
+
+      <!-- Phase 1: lookup -->
+      <div style="margin: 10px 0 6px; display:flex; justify-content:space-between; font-size:12px; color: var(--text-dim); text-transform: uppercase; letter-spacing:1px;">
+        <span>salyk.kg lookup</span>
+        <span><span id="lookup-done">{{ job.lookup_done }}</span> / <span id="lookup-total">{{ job.lookup_total }}</span></span>
+      </div>
+      <div style="height: 18px; background: rgba(0,0,0,0.6); border: 1px solid var(--border); border-radius: 2px; overflow: hidden; position: relative;">
+        <div id="bar-lookup" style="height: 100%; width: 0%; background: linear-gradient(90deg, #003300, #00ff41); box-shadow: 0 0 10px #00ff41; transition: width 0.4s;"></div>
+        <div id="bar-lookup-label" style="position: absolute; inset: 0; display:flex; align-items:center; justify-content:center; font-size: 11px; font-weight: 700; color: #fff; text-shadow: 0 0 2px #000;">0%</div>
+      </div>
+
+      <!-- Phase 2: render -->
+      <div style="margin: 18px 0 6px; display:flex; justify-content:space-between; font-size:12px; color: var(--text-dim); text-transform: uppercase; letter-spacing:1px;">
+        <span>pdf render</span>
+        <span><span id="render-done">{{ job.render_done }}</span> / <span id="render-total">{{ job.render_total }}</span></span>
+      </div>
+      <div style="height: 18px; background: rgba(0,0,0,0.6); border: 1px solid var(--border); border-radius: 2px; overflow: hidden; position: relative;">
+        <div id="bar-render" style="height: 100%; width: 0%; background: linear-gradient(90deg, #003300, #00ff41); box-shadow: 0 0 10px #00ff41; transition: width 0.4s;"></div>
+        <div id="bar-render-label" style="position: absolute; inset: 0; display:flex; align-items:center; justify-content:center; font-size: 11px; font-weight: 700; color: #fff; text-shadow: 0 0 2px #000;">0%</div>
+      </div>
+
+      <div class="stats" style="margin-top:18px">
+        <div class="stat">
+          <div class="label">elapsed</div>
+          <div class="value" id="stat-elapsed">0s</div>
+        </div>
+        <div class="stat">
+          <div class="label">eta</div>
+          <div class="value" id="stat-eta">—</div>
+        </div>
+      </div>
+
+      <div class="tips" style="margin-top:16px">
+        <strong>// последняя обработка:</strong>
+        <div id="last-line" style="margin-top:6px; font-family: var(--mono); color: var(--text-bright); text-shadow: var(--accent-soft-glow); word-break: break-word;">
+          waiting…
+        </div>
+      </div>
+
+      <p class="actions" style="margin-top:18px">
+        <a class="btn btn-link" href="{{ url_for('index') }}">← новый запрос (текущий продолжит в фоне)</a>
+      </p>
+    </div>
+  </section>
+
+  <section class="card" data-title="HACK_FEED" data-host="@tima:/dev/null">
+    <span class="classified-stamp">CLASSIFIED</span>
+    <div class="card-body">
+      <h2>Системный лог</h2>
+      <p class="hint" style="margin:0">// fake telemetry для атмосферы.</p>
+      <div class="hack-feed" id="hack-feed"></div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  const jobId = {{ job_id | tojson }};
+  const fmtTime = (s) => {
+    if (s < 60) return s + "s";
+    const m = Math.floor(s / 60), r = s % 60;
+    return m + "m " + r + "s";
+  };
+
+  // Включаем красный alert-режим
+  document.body.classList.add('alert-mode');
+
+  // ---- Fake hack feed ----
+  const FAKE_LINES = [
+    ["ok",   "$ bypassing cabinet.salyk.kg WAF ............ done"],
+    ["ok",   "$ injecting session cookie ................. done"],
+    ["warn", "$ warning: rate-limit threshold = 0.25s"],
+    ["ok",   "$ resolving DNS for cabinet.salyk.kg ........ 213.179.0.42"],
+    ["ok",   "$ TLS handshake (RSA-4096) .................. OK"],
+    ["err",  "$ alert: NSA route detected, masking origin..."],
+    ["ok",   "$ proxy chain: 185.220.x.x → 51.158.x.x → tor"],
+    ["ok",   "$ decrypting taxpayer record .............. xor done"],
+    ["warn", "$ pentagon database not responding (404) — rerouting"],
+    ["ok",   "$ extracting payload (json) ................ OK"],
+    ["err",  "$ DANGER: federal trace at 89% — engaging burner"],
+    ["ok",   "$ data exfiltration channel: tcp/443 ........ open"],
+    ["ok",   "$ root@tima:~# cat /etc/shadow .............. permission denied (lol)"],
+    ["err",  "$ ALERT: counterintelligence probe — falling back"],
+    ["ok",   "$ ghost protocol engaged .................... ✓"],
+    ["warn", "$ entropy low — reseeding RNG"],
+    ["err",  "$ INCOMING: ICMP flood from 8.8.8.8 — ignored"],
+    ["ok",   "$ patching kernel module zvn-222 ............ ok"],
+    ["ok",   "$ rebuilding excel encryption key ........... rc4 ok"],
+    ["ok",   "$ reportlab.canvas rendering overlay ........ done"],
+    ["ok",   "$ pypdf merging template + overlay .......... done"],
+    ["warn", "$ memory pressure 78% — gc triggered"],
+    ["ok",   "$ zip deflate stream ........................ 64% saved"],
+  ];
+  const feed = document.getElementById('hack-feed');
+  function pushLine(cls, text) {
+    const time = new Date().toISOString().slice(11, 19);
+    const div  = document.createElement('div');
+    div.className = "line";
+    div.innerHTML = `<span class="t">${time}</span><span class="${cls}">${text}</span>`;
+    feed.appendChild(div);
+    requestAnimationFrame(() => div.classList.add('show'));
+    while (feed.children.length > 12) feed.removeChild(feed.firstChild);
+  }
+  function fakeLoop() {
+    const pair = FAKE_LINES[Math.floor(Math.random() * FAKE_LINES.length)];
+    pushLine(pair[0], pair[1]);
+    setTimeout(fakeLoop, 500 + Math.random() * 1100);
+  }
+  fakeLoop();
+
+  // ---- Screamers (случайно во время загрузки) ----
+  const SCREAM_MSGS = [
+    { m: "TRACE DETECTED",      k: "red" },
+    { m: "ACCESS DENIED",       k: "red" },
+    { m: "INTRUSION LOGGED",    k: "red" },
+    { m: "WAKE UP NEO",         k: "green" },
+    { m: "FEDS ARE WATCHING",   k: "red" },
+    { m: "DECRYPTING...",       k: "green" },
+    { m: "GHOST PROTOCOL ACTIVE", k: "green" },
+    { m: "FBI · DO NOT MOVE",   k: "red" },
+    { m: "FOLLOW THE WHITE RABBIT", k: "green" },
+  ];
+  let screamScheduled = false;
+  function scheduleScream() {
+    if (screamScheduled) return;
+    screamScheduled = true;
+    const wait = 9000 + Math.random() * 14000;  // 9..23 с
+    setTimeout(() => {
+      screamScheduled = false;
+      if (document.body.classList.contains('alert-mode') && window.TIMA_screamer) {
+        const s = SCREAM_MSGS[Math.floor(Math.random() * SCREAM_MSGS.length)];
+        window.TIMA_screamer(s.m, { kind: s.k });
+        scheduleScream();
+      }
+    }, wait);
+  }
+  scheduleScream();
+
+  // ---- Реальный прогресс ----
+  async function tick() {
+    try {
+      const r = await fetch(`/generate/job/${jobId}/status`);
+      if (!r.ok) return;
+      const d = await r.json();
+
+      document.getElementById("lookup-total").textContent = d.lookup_total;
+      document.getElementById("lookup-done").textContent  = d.lookup_done;
+      document.getElementById("render-total").textContent = d.render_total;
+      document.getElementById("render-done").textContent  = d.render_done;
+      document.getElementById("stat-elapsed").textContent = fmtTime(d.elapsed);
+
+      const pctL = d.lookup_total ? Math.min(100, (d.lookup_done / d.lookup_total) * 100) : 100;
+      const pctR = d.render_total ? Math.min(100, (d.render_done / d.render_total) * 100) : 0;
+      document.getElementById("bar-lookup").style.width = pctL + "%";
+      document.getElementById("bar-render").style.width = pctR + "%";
+      document.getElementById("bar-lookup-label").textContent = pctL.toFixed(1) + "%";
+      document.getElementById("bar-render-label").textContent = pctR.toFixed(1) + "%";
+
+      // Фаза
+      const phaseEl = document.getElementById("phase-label");
+      if      (d.phase === "lookup")    phaseEl.innerHTML = 'phase 1 // looking up <span class="cursor"></span>';
+      else if (d.phase === "rendering") phaseEl.innerHTML = 'phase 2 // rendering PDFs <span class="cursor"></span>';
+      else if (d.phase === "zipping")   phaseEl.innerHTML = 'phase 3 // zipping <span class="cursor"></span>';
+
+      // ETA по lookup + render (для render берём 0.05с/строку — рендер быстрый)
+      if (d.elapsed > 0 && d.lookup_total + d.render_total > 0) {
+        let remainingLookup = 0, remainingRender = 0;
+        if (d.lookup_done > 0) {
+          const rateL = d.lookup_done / d.elapsed;
+          remainingLookup = Math.max(0, (d.lookup_total - d.lookup_done) / rateL);
+        }
+        // Рендер занимает ~50мс на строку
+        remainingRender = (d.render_total - d.render_done) * 0.05;
+        const eta = Math.round(remainingLookup + remainingRender);
+        document.getElementById("stat-eta").textContent = fmtTime(eta);
+      }
+
+      if (d.last_inn) {
+        const status = d.last_status || "ok";
+        const colour = d.last_name
+          ? "#00ff41"
+          : (status === "не найдено" ? "#f6c343" : "#ff3860");
+        document.getElementById("last-line").innerHTML =
+          `<span style="color:${colour}">[${status}]</span> ${d.last_inn} → ${d.last_name || "—"}`;
+        const cls = d.last_name ? "ok" : (status === "не найдено" ? "warn" : "err");
+        pushLine(cls, `$ extracted ${d.last_inn} → ${(d.last_name || "ghost").substring(0, 50)}`);
+      }
+
+      if (d.status === "done") {
+        document.body.classList.remove('alert-mode');
+        pushLine("ok", "$ breach complete — packing artefacts...");
+        if (window.TIMA_screamer) window.TIMA_screamer("MISSION ACCOMPLISHED", { kind: "green" });
+        setTimeout(() => window.location.reload(), 900);
+      } else if (d.status === "error") {
+        document.getElementById("last-line").innerHTML =
+          `<span style="color:#ff3860">[FATAL]</span> ${d.error || "unknown error"}`;
+        pushLine("err", "$ FATAL: " + (d.error || "session terminated"));
+        if (window.TIMA_screamer) window.TIMA_screamer("SYSTEM CRASH", { kind: "red" });
+      } else {
+        setTimeout(tick, 1500);
+      }
+    } catch (e) {
+      setTimeout(tick, 3000);
+    }
+  }
+  tick();
+</script>
+
+{% endblock %}

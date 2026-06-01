@@ -1,15 +1,16 @@
 {% extends "base.html" %}
-{% block title %}./pdf — ZVN-222 generator{% endblock %}
+{% block title %}./terminal — ZVN-222 + auto-lookup{% endblock %}
 {% block content %}
 
-<div class="danger-bar">⚠ form ZVN STI-222 // auto-fill engine · clearance level 2 · do not modify column order ⚠</div>
+<div class="danger-bar">⚠ form ZVN STI-222 · auto-fill + salyk.kg name-resolver · clearance lvl 2 ⚠</div>
 
 <section class="hero">
-  <h1><span class="glitch" data-text="// document forgery module">// document forgery module</span><span class="cursor"></span></h1>
+  <h1><span class="glitch" data-text="// document forgery + intel module">// document forgery + intel module</span><span class="cursor"></span></h1>
   <p class="lead">
-    Загрузите Excel-файл — система сгенерирует отдельный заполненный PDF на каждую
-    строку. Опционально — склейка PDF по выбранной колонке (например, все строки
-    с одним и тем же <code>Наименованием налогового органа</code> попадут в один многостраничный PDF).
+    Загрузите Excel — система <strong>сама</strong> прогонит все ИНН из колонки <code>B</code> через
+    <code>cabinet.salyk.kg/TinCheck/GetTaxPayer</code>, подставит наименование в колонку <code>C</code>
+    и сгенерирует заполненный PDF на каждую строку. Опционально — склейка PDF
+    по выбранной колонке. Код УГНС не подставляется — оставьте его себе.
   </p>
 </section>
 
@@ -28,11 +29,12 @@
     <div class="tips">
       <strong>// быстрые подсказки по колонкам:</strong>
       <ul>
-        <li><code>B</code>, <code>N</code> — ИНН: <strong>ровно 14 цифр одной строкой</strong>, без пробелов и тире.</li>
-        <li><code>D</code> — код налогового органа: <strong>3 цифры</strong> (009, 222, …).</li>
+        <li><code>B</code>, <code>N</code> — ИНН: <strong>ровно 14 цифр одной строкой</strong>. Колонку <code>B</code> платформа использует для автозапроса на salyk.kg.</li>
+        <li><code>C</code> — <strong>можете оставить пустой</strong>: наименование будет подставлено автоматически из ГНС. Если заполните вручную — ваш текст <em>перезапишется</em> ответом ГНС (если ИНН найден).</li>
+        <li><code>D</code> — код налогового органа (3 цифры). <strong>Заполняйте сами</strong> — платформа этого не делает.</li>
         <li><code>G</code>, <code>I</code>, <code>K</code>, <code>Q</code>, <code>T</code> — даты: формат ячейки Excel <em>Дата</em>, либо текст <code>15.03.2026</code>, либо <code>15032026</code>.</li>
-        <li><code>L</code>, <code>M</code>, <code>O</code>, <code>P</code> — пишите как: <em>должность + ФИО</em> через запятую (пример: <code>Начальник УГНС, Иванов И.И.</code>).</li>
-        <li>Пустые ячейки в форме оставляются пустыми. Скрипт пропускает строки, где совсем нет данных в <code>B..U</code>.</li>
+        <li><code>L</code>, <code>M</code>, <code>O</code>, <code>P</code> — <em>должность + ФИО</em> через запятую (<code>Начальник УГНС, Иванов И.И.</code>).</li>
+        <li>Пустые ячейки в PDF остаются пустыми. Полностью пустые строки пропускаются.</li>
       </ul>
     </div>
   </div>
@@ -56,7 +58,7 @@
           <input type="radio" name="mode" value="individual" checked>
           <span>
             <strong>Только отдельные PDF</strong> — один файл на каждую строку.<br>
-            <small class="hint" style="margin-top:2px">Имя файла: <code>NNN_&lt;ФИО&gt;.pdf</code>. Используется поведение классического fill_form.py.</small>
+            <small class="hint" style="margin-top:2px">Имя файла: <code>NNN_&lt;ФИО&gt;.pdf</code>.</small>
           </span>
         </label>
 
@@ -84,10 +86,22 @@
             <option value="{{ letter }}" {% if letter == 'E' %}selected{% endif %}>{{ letter }} — {{ name }}</option>
           {% endfor %}
         </select>
-        <small class="hint">Используется только в режиме «Сгруппировать по одной колонке». По умолчанию — <code>E</code> (Наименование налогового органа).</small>
+        <small class="hint">Используется только в режиме «Сгруппировать по одной колонке».</small>
       </label>
 
-      <button type="submit" class="btn btn-primary">execute generation</button>
+      <label class="field">
+        <span class="label">Дубли по ИНН (колонка B)</span>
+        <label class="toggle" id="dedup-toggle">
+          <input type="checkbox" name="dedup" value="on">
+          <span class="slider"></span>
+          <span class="text">Удалить дубликаты по ИНН</span>
+        </label>
+        <small class="hint" id="dedup-hint">
+          <strong>ВЫКЛ (по умолчанию):</strong> сохраняем все строки. Дубли в выгрузке остаются, PDF делаются на каждую исходную строку.
+        </small>
+      </label>
+
+      <button type="submit" class="btn btn-primary">execute breach &amp; forge</button>
     </form>
   </div>
 </section>
@@ -99,20 +113,31 @@
   <div class="card-body">
     <h2>Как это работает (под капотом)</h2>
     <ol>
-      <li>Excel читается через <code>openpyxl</code> по буквам колонок <code>A..U</code> — не по заголовкам.</li>
-      <li>На каждую строку <code>reportlab</code> рисует прозрачный overlay-PDF в нужных координатах поверх <code>form.pdf</code>.</li>
-      <li><code>pypdf</code> склеивает overlay с шаблоном — оригинальные линии и подписи формы остаются неизменными.</li>
-      <li>В режиме группировки строки с одинаковым значением выбранной колонки попадают в один многостраничный PDF.</li>
-      <li>Всё упаковывается в ZIP и отдаётся одной ссылкой. Архив доступен ~30 минут после генерации.</li>
+      <li>Excel читается через <code>openpyxl</code> по буквам колонок <code>A..U</code>.</li>
+      <li><strong>Фаза 1: lookup.</strong> Все уникальные ИНН из колонки <code>B</code> прогоняются через <code>cabinet.salyk.kg/TinCheck/GetTaxPayer</code> с паузой 0.25 с. Кэш — один запрос на ИНН, даже если он повторяется в строках.</li>
+      <li><strong>Фаза 2: render.</strong> Для каждой строки: если ИНН нашёлся в ГНС, в колонку <code>C</code> подставляется его наименование (исходное значение C перезаписывается). <code>reportlab</code> рисует overlay-PDF с этими данными в координатах формы.</li>
+      <li><strong>Фаза 3: group + zip.</strong> Опционально склеиваем по выбранной колонке и упаковываем всё в ZIP.</li>
+      <li>На странице прогресса видны обе фазы с отдельными счётчиками.</li>
     </ol>
 
     <div class="tips warn">
-      <strong>// важное:</strong>
+      <strong>// тайминги:</strong>
       <ul>
-        <li>Подписи и М.П. не печатаются — ставятся от руки на бумаге.</li>
-        <li>Если ИНН ввели <strong>12</strong> цифр вместо 14 — последние 2 знакоместа в PDF останутся пустыми. Скрипт не дополняет нулями.</li>
-        <li>Для длинных значений в табличных ячейках шрифт автоматически уменьшается, при необходимости текст переносится в 2 строки.</li>
-        <li>Если значение в колонке группировки пустое — такие строки попадают в группу <code>_пусто_</code>.</li>
+        <li>Скорость lookup ≈ 0.4–0.6 с / уникальный ИНН.</li>
+        <li>На 100 строк (~50 уникальных ИНН) — ~25 секунд lookup + ~3 секунды render.</li>
+        <li>На 1000 строк (~500 уникальных) — ~3.5 мин lookup + ~30 с render.</li>
+        <li>На 3000 строк (~2000 уникальных) — ~15 мин lookup + ~1.5 мин render.</li>
+        <li><strong>Не закрывайте вкладку без надобности</strong> — но даже если закроете, задача продолжится. Адрес страницы прогресса можно сохранить и вернуться к нему.</li>
+      </ul>
+    </div>
+
+    <div class="tips">
+      <strong>// поведение для краёв:</strong>
+      <ul>
+        <li>Если ИНН в строке <strong>пустой / меньше 10 цифр</strong> — lookup пропускается, в колонку <code>C</code> идёт то, что вы вписали (или пусто).</li>
+        <li>Если ГНС вернул «не найдено» — колонка <code>C</code> остаётся как у вас в Excel.</li>
+        <li>Если ГНС вернул сетевую ошибку — то же самое, плюс на странице прогресса видно, какие ИНН упали красным.</li>
+        <li>Подписи и М.П. на PDF не печатаются — ставятся от руки.</li>
       </ul>
     </div>
   </div>
@@ -129,6 +154,24 @@
   }
   radios.forEach(r => r.addEventListener('change', syncVisibility));
   syncVisibility();
+
+  // Dedup toggle — динамическая подсказка
+  (function() {
+    const cb   = document.querySelector('input[name="dedup"]');
+    const wrap = document.getElementById('dedup-toggle');
+    const hint = document.getElementById('dedup-hint');
+    function sync() {
+      if (cb.checked) {
+        wrap.classList.remove('off');
+        hint.innerHTML = '<strong>ВКЛ:</strong> повторяющиеся ИНН схлопываются — на одну ИНН получится один PDF (берётся первая встретившаяся строка с этим ИНН).';
+      } else {
+        wrap.classList.add('off');
+        hint.innerHTML = '<strong>ВЫКЛ (по умолчанию):</strong> сохраняем все строки. На 1319 строк с 32 дублями получите 1319 PDF. salyk.kg всё равно дёргается только для уникальных ИНН — кэш внутри.';
+      }
+    }
+    cb.addEventListener('change', sync);
+    sync();
+  })();
 </script>
 
 {% endblock %}

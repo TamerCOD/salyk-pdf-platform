@@ -148,6 +148,135 @@ def download_form_template():
     )
 
 
+def _extract_inn(raw):
+    """Берёт ИНН из ячейки — оставляет только цифры. None если меньше 10."""
+    if raw is None:
+        return ""
+    s = re.sub(r"[^\d]", "", str(raw))
+    return s if len(s) >= 10 else ""
+
+
+def _run_generate_job(job_id, rows, unique_inns, mode, group_col):
+    """Фоновая обработка: lookup ИНН → подставить в C → отрендерить PDF →
+    сгруппировать → положить в ZIP."""
+    inn_to_name: dict[str, str] = {}
+
+    def on_lookup_progress(i, total, r):
+        with _JOBS_LOCK:
+            job = _JOBS.get(job_id)
+            if job:
+                job["lookup_done"] = i
+                job["last_inn"] = r["inn"]
+                job["last_name"] = r["name"][:80]
+                job["last_status"] = r["status"]
+        if r["name"]:
+            inn_to_name[r["inn"]] = r["name"]
+
+    try:
+        # ── Phase 1: lookup salyk.kg ─────────────────────────────
+        if unique_inns:
+            inn_lookup.lookup_many(
+                unique_inns,
+                delay=inn_lookup.DEFAULT_DELAY,
+                progress=on_lookup_progress,
+                use_cache=True,
+            )
+
+        # ── Phase 2: render PDFs ─────────────────────────────────
+        with _JOBS_LOCK:
+            job = _JOBS.get(job_id)
+            if job:
+                job["phase"] = "rendering"
+
+        individual = []
+        for idx, row in enumerate(rows, 1):
+            inn = _extract_inn(row.get("B"))
+            looked = inn_to_name.get(inn)
+            row_for_pdf = dict(row)
+            if looked:
+                row_for_pdf["C"] = looked  # подставляем наименование из ГНС
+            pdf_bytes = fill_pdf_bytes(str(TEMPLATE_PDF), row_for_pdf)
+            num = row_for_pdf.get("A") or idx
+            name_part = safe_filename(row_for_pdf.get("C") or f"row{idx}")
+            fname = f"{str(num).zfill(3)}_{name_part}.pdf"
+            individual.append({
+                "row": row_for_pdf,
+                "filename": fname,
+                "bytes": pdf_bytes,
+            })
+            with _JOBS_LOCK:
+                job = _JOBS.get(job_id)
+                if job:
+                    job["render_done"] = idx
+
+        # ── Phase 3: group + zip ─────────────────────────────────
+        with _JOBS_LOCK:
+            job = _JOBS.get(job_id)
+            if job:
+                job["phase"] = "zipping"
+
+        zip_buf = io.BytesIO()
+        summary = []
+
+        with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for item in individual:
+                zf.writestr(f"individual/{item['filename']}", item["bytes"])
+
+            if mode == "individual":
+                grouping_cols = []
+            elif mode == "single":
+                grouping_cols = [group_col] if group_col in COLUMN_LABELS else []
+            elif mode == "all":
+                grouping_cols = list("BCDEFGHIJKLMNOPQRSTU")
+            else:
+                grouping_cols = []
+
+            for col in grouping_cols:
+                groups: dict[str, list[bytes]] = {}
+                for item in individual:
+                    raw = item["row"].get(col)
+                    if raw is None or str(raw).strip() == "":
+                        key = "_пусто_"
+                    elif hasattr(raw, "strftime"):
+                        key = raw.strftime("%Y-%m-%d")
+                    else:
+                        key = str(raw).strip()
+                    groups.setdefault(key, []).append(item["bytes"])
+
+                label = COLUMN_LABELS[col]
+                label_safe = safe_filename(label)
+                for key, pdfs in groups.items():
+                    merged = merge_pdfs(pdfs)
+                    key_safe = safe_filename(key) or "_пусто_"
+                    zf.writestr(
+                        f"grouped_by_{col}_{label_safe}/{key_safe}.pdf",
+                        merged,
+                    )
+                    summary.append((label, key, len(pdfs)))
+
+        zip_buf.seek(0)
+        archive_name = f"zvn_pdfs_{int(time.time())}.zip"
+        token = _store_file(archive_name, zip_buf.getvalue(), "application/zip")
+
+        with _JOBS_LOCK:
+            job = _JOBS.get(job_id)
+            if job:
+                job["status"] = "done"
+                job["finished_at"] = time.time()
+                job["file_token"] = token
+                job["file_name"] = archive_name
+                job["summary"] = summary
+                job["inn_to_name"] = inn_to_name
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        with _JOBS_LOCK:
+            job = _JOBS.get(job_id)
+            if job:
+                job["status"] = "error"
+                job["error"] = str(e)[:300]
+
+
 @app.route("/generate", methods=["POST"])
 def generate():
     if "excel" not in request.files or request.files["excel"].filename == "":
@@ -168,72 +297,119 @@ def generate():
 
     mode = request.form.get("mode", "individual")
     group_col = request.form.get("group_column", "").strip().upper()
+    # Toggle: если включён — дедуплицируем по ИНН (колонка B).
+    # Если выключен (по умолчанию) — сохраняем все строки, дубли остаются.
+    dedup_flag = request.form.get("dedup") == "on"
 
-    # Сгенерировать PDF на каждую строку, в памяти.
-    individual = []
-    for idx, row in enumerate(rows, 1):
-        pdf_bytes = fill_pdf_bytes(str(TEMPLATE_PDF), row)
-        num = row.get("A") or idx
-        name_part = safe_filename(row.get("C") or f"row{idx}")
-        fname = f"{str(num).zfill(3)}_{name_part}.pdf"
-        individual.append({"row": row, "filename": fname, "bytes": pdf_bytes})
-
-    zip_buf = io.BytesIO()
-    summary = []  # (label, filename, size)
-
-    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        # Всегда кладём отдельные файлы
-        for item in individual:
-            zf.writestr(f"individual/{item['filename']}", item["bytes"])
-
-        # Группировка
-        if mode == "individual":
-            grouping_cols = []
-        elif mode == "single":
-            grouping_cols = [group_col] if group_col in COLUMN_LABELS else []
-        elif mode == "all":
-            # Группировка по всем содержательным колонкам (B..U), кроме A и пустых
-            grouping_cols = [c for c in "BCDEFGHIJKLMNOPQRSTU"]
-        else:
-            grouping_cols = []
-
-        for col in grouping_cols:
-            groups = {}
-            for item in individual:
-                raw = item["row"].get(col)
-                if raw is None or str(raw).strip() == "":
-                    key = "_пусто_"
-                elif hasattr(raw, "strftime"):
-                    key = raw.strftime("%Y-%m-%d")
-                else:
-                    key = str(raw).strip()
-                groups.setdefault(key, []).append(item["bytes"])
-
-            label = COLUMN_LABELS[col]
-            label_safe = safe_filename(label)
-            for key, pdfs in groups.items():
-                merged = merge_pdfs(pdfs)
-                key_safe = safe_filename(key) or "_пусто_"
-                zf.writestr(
-                    f"grouped_by_{col}_{label_safe}/{key_safe}.pdf",
-                    merged,
-                )
-                summary.append((label, key, len(pdfs)))
-
-    zip_buf.seek(0)
-    archive_name = f"zvn_pdfs_{int(time.time())}.zip"
-    token = _store_file(archive_name, zip_buf.getvalue(), "application/zip")
-
-    return render_template(
-        "result.html",
-        token=token,
-        archive_name=archive_name,
-        total_rows=len(rows),
-        mode=mode,
-        group_col=group_col,
-        group_col_label=COLUMN_LABELS.get(group_col, ""),
-        summary=summary,
+    # Статистика дублей ДО дедупа — чтобы показать пользователю
+    inns_per_row = [_extract_inn(r.get("B")) for r in rows]
+    counter = Counter([x for x in inns_per_row if x])
+    duplicates = sorted(
+        [(inn, n) for inn, n in counter.items() if n > 1],
+        key=lambda x: -x[1],
     )
+    total_input = len(rows)
+
+    if dedup_flag:
+        seen = set()
+        rows_to_process = []
+        for r, inn in zip(rows, inns_per_row):
+            if inn and inn in seen:
+                continue
+            if inn:
+                seen.add(inn)
+            rows_to_process.append(r)
+    else:
+        rows_to_process = rows
+
+    unique_count = len(rows_to_process)
+
+    # Уникальные валидные ИНН для запроса в ГНС
+    unique_inns = list(dict.fromkeys(
+        _extract_inn(r.get("B")) for r in rows_to_process if _extract_inn(r.get("B"))
+    ))
+
+    _cleanup_jobs()
+    job_id = uuid.uuid4().hex
+    with _JOBS_LOCK:
+        _JOBS[job_id] = {
+            "kind": "generate",
+            "status": "running",
+            "phase": "lookup",
+            "lookup_total": len(unique_inns),
+            "lookup_done": 0,
+            "render_total": len(rows_to_process),
+            "render_done": 0,
+            "started_at": time.time(),
+            "expires": time.time() + _JOB_TTL,
+            "last_inn": "",
+            "last_name": "",
+            "last_status": "",
+            "dedup": dedup_flag,
+            "total_input": total_input,
+            "unique_count": unique_count,
+            "duplicates": duplicates,
+            "mode": mode,
+            "group_col": group_col,
+        }
+    t = Thread(
+        target=_run_generate_job,
+        args=(job_id, rows_to_process, unique_inns, mode, group_col),
+        daemon=True,
+    )
+    t.start()
+    return redirect(url_for("generate_job_page", job_id=job_id))
+
+
+@app.route("/generate/job/<job_id>")
+def generate_job_page(job_id):
+    _cleanup_jobs()
+    with _JOBS_LOCK:
+        job = _JOBS.get(job_id)
+        if not job:
+            abort(404)
+        snapshot = dict(job)
+
+    if snapshot["status"] == "done":
+        return render_template(
+            "result.html",
+            token=snapshot["file_token"],
+            archive_name=snapshot["file_name"],
+            total_rows=snapshot["render_total"],
+            mode=snapshot["mode"],
+            group_col=snapshot["group_col"],
+            group_col_label=COLUMN_LABELS.get(snapshot["group_col"], ""),
+            summary=snapshot.get("summary", []),
+            dedup=snapshot.get("dedup", False),
+            total_input=snapshot.get("total_input", 0),
+            unique_count=snapshot.get("unique_count", 0),
+            duplicates=snapshot.get("duplicates", []),
+            lookup_total=snapshot.get("lookup_total", 0),
+            lookup_filled=sum(1 for v in (snapshot.get("inn_to_name") or {}).values() if v),
+        )
+
+    return render_template("generate_job.html", job_id=job_id, job=snapshot)
+
+
+@app.route("/generate/job/<job_id>/status")
+def generate_job_status(job_id):
+    with _JOBS_LOCK:
+        job = _JOBS.get(job_id)
+        if not job:
+            return jsonify({"error": "not_found"}), 404
+        return jsonify({
+            "status": job["status"],
+            "phase": job.get("phase"),
+            "lookup_total": job.get("lookup_total", 0),
+            "lookup_done": job.get("lookup_done", 0),
+            "render_total": job.get("render_total", 0),
+            "render_done": job.get("render_done", 0),
+            "last_inn": job.get("last_inn", ""),
+            "last_name": job.get("last_name", ""),
+            "last_status": job.get("last_status", ""),
+            "error": job.get("error"),
+            "elapsed": int(time.time() - job["started_at"]),
+        })
 
 
 @app.route("/download/<token>")
@@ -251,9 +427,12 @@ def download(token):
     )
 
 
+# Старая отдельная страница /inn убрана — функционал интегрирован в /generate.
+# Маршруты ниже оставлены deprecated на случай если у кого-то остались закладки;
+# редиректят на главную.
 @app.route("/inn")
 def inn_page():
-    return render_template("inn.html")
+    return redirect(url_for("index"))
 
 
 @app.route("/inn/lookup", methods=["POST"])
