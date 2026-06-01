@@ -20,4 +20,4 @@ ENV PORT=8080
 EXPOSE 8080
 
 # 2 worker, 4 threads, длинный timeout для ИНН-парсера который может работать минуты
-CMD gunicorn --bind 0.0.0.0:${PORT} --workers 2 --threads 4 --timeout 600 app:app
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 2 --threads 4 --timeout 600 app:app"]
