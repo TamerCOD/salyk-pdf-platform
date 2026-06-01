@@ -1,65 +1,114 @@
 {% extends "base.html" %}
-{% block title %}./inn — salyk.kg lookup{% endblock %}
+{% block title %}./inn — classified salyk.kg access{% endblock %}
 {% block content %}
 
+<div class="danger-bar">⚠ classified · top secret · restricted access · clearance lvl 5 required ⚠</div>
+
 <section class="hero">
-  <h1>cabinet.salyk.kg :: INN lookup<span class="cursor"></span></h1>
+  <h1>cabinet.salyk.kg <span class="glitch" data-text="// intrusion module">// intrusion module</span><span class="cursor"></span></h1>
   <p class="lead">
-    Введите список ИНН (через пробел, запятую или с новой строки) или загрузите Excel,
-    где в первой колонке стоят ИНН. Платформа дернёт API ГНС КР
-    <code>/TinCheck/GetTaxPayer</code> и вернёт Excel с наименованием налогоплательщика и кодом УГНС.
+    Подключаемся к публичному API налоговой <code>cabinet.salyk.kg/TinCheck/GetTaxPayer</code>,
+    дёргаем по списку ИНН и возвращаем Excel с наименованием и кодом УГНС.
+    Все запросы идут с заголовками реального браузера и предварительным «прогревом» куки.
   </p>
 </section>
 
-<section class="card" data-title="QUERY" data-host="@tima:/inn/lookup">
-  <div class="card-body">
-    <form action="{{ url_for('inn_lookup_route') }}" method="post" enctype="multipart/form-data">
-      <label class="field">
-        <span class="label">Список ИНН (вариант 1)</span>
-        <textarea name="inns_text" rows="6"
-          placeholder="01303202410745, 02804202012345&#10;01405197654321&#10;10512197000240"></textarea>
-        <small class="hint">10+ цифр на ИНН. Разделители — пробел, запятая, точка с запятой или новая строка. Заголовки типа «ИНН» отфильтровываются автоматически.</small>
-      </label>
+<div class="grid-2">
 
-      <label class="field">
-        <span class="label">Excel-файл (вариант 2)</span>
-        <input type="file" name="excel" accept=".xlsx,.xlsm">
-        <small class="hint">ИНН должны лежать в первой колонке (A). Можно использовать оба варианта — текст и файл — они объединятся, дубликаты будут удалены.</small>
-      </label>
+  <section class="card" data-title="QUERY_PAYLOAD" data-host="@tima:/inn/lookup">
+    <span class="classified-stamp">CLASSIFIED</span>
+    <div class="card-body">
+      <form action="{{ url_for('inn_lookup_route') }}" method="post" enctype="multipart/form-data">
 
-      <button type="submit" class="btn btn-primary">request batch</button>
-    </form>
+        <label class="field">
+          <span class="label">Inject targets — список ИНН (вариант 1)</span>
+          <textarea name="inns_text" rows="8"
+            placeholder="01303202410745, 02804202012345&#10;01405197654321&#10;10512197000240"></textarea>
+          <small class="hint">10+ цифр на ИНН. Разделители — пробел, запятая, точка с запятой или новая строка. Заголовки типа «ИНН» отфильтровываются автоматически.</small>
+        </label>
 
-    <div class="tips">
-      <strong>// тайминги и лимиты:</strong>
-      <ul>
-        <li>Между запросами пауза <code>0.25 сек</code> — чтобы не словить бан от ГНС.</li>
-        <li>Лимит: <strong>3000 ИНН</strong> за один батч. Больше — бейте на части.</li>
-        <li>Скорость ≈ 0.4–0.6 с / ИНН. Примерные тайминги: <code>100</code> — ~45 с, <code>500</code> — ~3.5 мин, <code>1000</code> — ~8 мин, <code>3000</code> — ~25 мин.</li>
-        <li>Обработка идёт <strong>в фоне на сервере</strong>: после отправки вы попадёте на страницу прогресса с автообновлением. Закрытие вкладки <strong>не останавливает</strong> задачу — вернитесь по той же ссылке.</li>
-        <li>Если ИНН не найден или вернул HTTP-ошибку — строка попадёт в выгрузку со статусом <code>не найдено</code> / <code>HTTP NNN</code> и подсветится цветом.</li>
-      </ul>
+        <label class="field">
+          <span class="label">Upload payload — Excel-файл (вариант 2)</span>
+          <input type="file" name="excel" accept=".xlsx,.xlsm">
+          <small class="hint">ИНН должны лежать в первой колонке (A). Можно использовать оба варианта одновременно — текст и файл объединятся.</small>
+        </label>
+
+        <label class="field">
+          <span class="label">Strategy — что делать с дублями</span>
+          <label class="toggle" id="dedup-toggle">
+            <input type="checkbox" name="dedup" value="on" checked>
+            <span class="slider"></span>
+            <span class="text">Удалять дубликаты ИНН</span>
+          </label>
+          <small class="hint" id="dedup-hint">
+            <strong>ВКЛ:</strong> повторяющиеся ИНН схлопываются. В Excel будет столько строк, сколько уникальных ИНН на входе. Это поведение по умолчанию.
+          </small>
+        </label>
+
+        <button type="submit" class="btn btn-primary">execute breach</button>
+      </form>
     </div>
-  </div>
-</section>
+  </section>
 
-<section class="card muted" data-title="USE_CASE" data-host="@tima:/help">
-  <div class="card-body">
-    <h2>Зачем это нужно</h2>
-    <ol>
-      <li>У вас есть список ИНН без наименований — нужно подтянуть «ФИО / название организации» из ГНС.</li>
-      <li>Перед массовой генерацией ZVN-222 вы хотите сверить, что все ИНН живые и корректные.</li>
-      <li>Кодом УГНС (поле <code>rayon</code>) можно сразу заполнить колонку <code>D</code> в шаблоне PDF-генератора.</li>
-    </ol>
+  <section class="card muted" data-title="OPSEC_BRIEFING" data-host="@tima:/help">
+    <span class="classified-stamp">TOP SECRET</span>
+    <div class="card-body">
+      <h2>Тайминги и лимиты</h2>
+      <div class="tips">
+        <strong>// performance:</strong>
+        <ul>
+          <li>Пауза между запросами <code>0.25 с</code> — чтобы не словить временный бан.</li>
+          <li>Лимит: <strong>3000 ИНН</strong> за один batch. Больше — разбейте на части.</li>
+          <li>Скорость ≈ 0.4–0.6 с / ИНН. <code>100</code> — ~45 с · <code>500</code> — ~3.5 мин · <code>1000</code> — ~8 мин · <code>3000</code> — ~25 мин.</li>
+          <li>Обработка <strong>в фоне на сервере</strong>: после отправки попадаете на live-страницу прогресса. Закрытие вкладки <strong>не останавливает</strong> задачу — вернитесь по той же ссылке.</li>
+          <li>Результат хранится 2 часа после завершения, потом удаляется автоматически.</li>
+        </ul>
+      </div>
 
-    <div class="tips warn">
-      <strong>// важно:</strong>
-      <ul>
-        <li>Это публичный API ГНС, который используется на форме регистрации <code>cabinet.salyk.kg/account/register</code>. Никаких особых прав не нужно, но не злоупотребляйте — серверу не нравятся залпы.</li>
-        <li>Кэширования на нашей стороне нет — каждый запрос идёт на ГНС. Если запрашиваете один и тот же ИНН повторно — это всегда новый сетевой вызов.</li>
-      </ul>
+      <h2 style="margin-top:18px">Дубли — как работает toggle</h2>
+      <div class="tips warn">
+        <strong>// dedup behaviour:</strong>
+        <ul>
+          <li><strong>ВКЛ (по умолчанию):</strong> 1319 ИНН с 32 дублями → 1287 строк в выгрузке. ГНС дёргается 1287 раз.</li>
+          <li><strong>ВЫКЛ:</strong> 1319 ИНН → <strong>1319 строк</strong> в выгрузке. Дубли всё равно <em>кэшируются</em> локально, поэтому ГНС дёргается только 1287 раз — экономия времени та же.</li>
+          <li>В обоих режимах на странице результата будет блок «<strong>дублирующиеся ИНН</strong>» со списком повторов и их количеством — чтобы вы могли понять, что именно повторялось.</li>
+        </ul>
+      </div>
+
+      <h2 style="margin-top:18px">Цвет в Excel</h2>
+      <div class="tips">
+        <strong>// status colour:</strong>
+        <ul>
+          <li><span style="color:#00ff41">●</span> зелёный — найдено, <code>name</code> заполнен.</li>
+          <li><span style="color:#f6c343">●</span> жёлтый — ИНН валиден, но ГНС вернул «не найдено» (нет такого налогоплательщика).</li>
+          <li><span style="color:#ff5560">●</span> красный — HTTP-ошибка / таймаут / нет соединения. ГНС может временно лагать — повторите такие ИНН отдельным батчем.</li>
+        </ul>
+      </div>
     </div>
-  </div>
-</section>
+  </section>
+
+</div>
+
+<script>
+  // Toggle подсказка
+  (function() {
+    const cb   = document.querySelector('input[name="dedup"]');
+    const wrap = document.getElementById('dedup-toggle');
+    const hint = document.getElementById('dedup-hint');
+    function sync() {
+      if (cb.checked) {
+        wrap.classList.remove('off');
+        wrap.querySelector('.text').textContent = 'Удалять дубликаты ИНН';
+        hint.innerHTML = '<strong>ВКЛ:</strong> повторяющиеся ИНН схлопываются. В Excel будет столько строк, сколько уникальных ИНН на входе. Это поведение по умолчанию.';
+      } else {
+        wrap.classList.add('off');
+        wrap.querySelector('.text').textContent = 'Оставлять дубликаты — N IN, N OUT';
+        hint.innerHTML = '<strong>ВЫКЛ:</strong> сохраняются все исходные строки. На 1319 ИНН (с 32 дублями) получите ровно 1319 строк. ГНС всё равно дёргается только для уникальных — кэш внутри.';
+      }
+    }
+    cb.addEventListener('change', sync);
+    sync();
+  })();
+</script>
 
 {% endblock %}

@@ -1,67 +1,71 @@
 {% extends "base.html" %}
-{% block title %}INN job :: {{ job.done }}/{{ job.total }}{% endblock %}
+{% block title %}BREACH IN PROGRESS :: {{ job.done }}/{{ job.total }}{% endblock %}
 {% block content %}
 
+<div class="danger-bar">⚠ unauthorized access detected · trace countermeasures: 03:47 · do not abort ⚠</div>
+
 <section class="hero">
-  <h1>processing_inn_batch<span class="cursor"></span></h1>
+  <h1><span class="glitch" data-text="// breaching salyk mainframe">// breaching salyk mainframe</span><span class="cursor"></span></h1>
   <p class="lead">
-    Запрос отправлен в очередь. ИНН опрашиваются по одному с паузой ~0.25 сек, чтобы
-    не словить бан от ГНС. Эту вкладку <strong>можно не закрывать</strong> — страница сама обновится,
-    когда задача завершится.
+    Сеанс активен. Сервер по одному дёргает ИНН через прокси-сессию с куки <code>cabinet.salyk.kg</code>.
+    Закрытие вкладки <strong>не остановит</strong> процесс. Адрес страницы можно сохранить — задача
+    продолжит работать ещё 2 часа после завершения, результат будет ждать.
   </p>
 </section>
 
-<section class="card" data-title="JOB" data-host="@tima:/inn/job">
-  <div class="card-body">
-    <h2>Прогресс</h2>
+<div class="grid-2">
 
-    <div class="stats">
-      <div class="stat">
-        <div class="label">всего</div>
-        <div class="value" id="stat-total">{{ job.total }}</div>
+  <section class="card" data-title="LIVE_BREACH" data-host="@tima:/inn/job">
+    <span class="classified-stamp">EYES ONLY</span>
+    <div class="card-body">
+
+      <div class="stats">
+        <div class="stat">
+          <div class="label">targets total</div>
+          <div class="value" id="stat-total">{{ job.total }}</div>
+        </div>
+        <div class="stat">
+          <div class="label">extracted</div>
+          <div class="value" id="stat-done">{{ job.done }}</div>
+        </div>
+        <div class="stat">
+          <div class="label">eta</div>
+          <div class="value" id="stat-eta">—</div>
+        </div>
+        <div class="stat">
+          <div class="label">elapsed</div>
+          <div class="value" id="stat-elapsed">0s</div>
+        </div>
       </div>
-      <div class="stat">
-        <div class="label">обработано</div>
-        <div class="value" id="stat-done">{{ job.done }}</div>
+
+      <div style="margin: 18px 0; height: 18px; background: rgba(0,0,0,0.6); border: 1px solid var(--border); border-radius: 2px; overflow: hidden; position: relative;">
+        <div id="bar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #003300, #00ff41); box-shadow: 0 0 10px #00ff41; transition: width 0.4s;"></div>
+        <div id="bar-label" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: #fff; text-shadow: 0 0 2px #000;">0%</div>
       </div>
-      <div class="stat">
-        <div class="label">осталось ~</div>
-        <div class="value" id="stat-eta">—</div>
+
+      <div class="tips">
+        <strong>// последняя добытая запись:</strong>
+        <div id="last-line" style="margin-top:6px; font-family: var(--mono); color: var(--text-bright); text-shadow: var(--accent-soft-glow); word-break: break-word;">
+          waiting for first packet…
+        </div>
       </div>
-      <div class="stat">
-        <div class="label">прошло</div>
-        <div class="value" id="stat-elapsed">0s</div>
-      </div>
+
+      <p class="actions" style="margin-top:18px">
+        <a class="btn btn-link" href="{{ url_for('inn_page') }}">← новый batch (текущий продолжит в фоне)</a>
+      </p>
     </div>
+  </section>
 
-    <div style="margin: 18px 0; height: 16px; background: rgba(0,0,0,0.6); border: 1px solid var(--border); border-radius: 2px; overflow: hidden;">
-      <div id="bar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #003300, #00ff41); box-shadow: 0 0 10px #00ff41; transition: width 0.4s;"></div>
+  <section class="card" data-title="HACK_FEED" data-host="@tima:/dev/null">
+    <span class="classified-stamp">CLASSIFIED</span>
+    <div class="card-body">
+      <h2>Системный лог</h2>
+      <p class="hint" style="margin:0">// fake telemetry для атмосферы. реальный прогресс — слева.</p>
+      <div class="hack-feed" id="hack-feed"></div>
     </div>
+  </section>
 
-    <div class="tips">
-      <strong>// последняя обработанная запись:</strong>
-      <div id="last-line" style="margin-top:6px; font-family: var(--mono); color: var(--text-bright); text-shadow: var(--accent-soft-glow); word-break: break-word;">
-        ожидание первого ответа…
-      </div>
-    </div>
-
-    <p class="actions" style="margin-top:18px">
-      <a class="btn btn-link" href="{{ url_for('inn_page') }}">← вернуться (задача продолжит работать в фоне)</a>
-    </p>
-  </div>
-</section>
-
-<section class="card muted" data-title="INFO" data-host="@tima:/help">
-  <div class="card-body">
-    <h2>Что важно знать</h2>
-    <ul>
-      <li>Задача исполняется на сервере в фоне. Закроете вкладку — обработка не остановится. Вернитесь по этой же ссылке (она в адресной строке) — увидите свежий прогресс.</li>
-      <li>Время оценочное: ≈0.4–0.6 секунды на каждый ИНН (пауза + запрос). На 3000 ИНН — около 20–30 минут.</li>
-      <li>Когда задача закончится, страница автоматически перебросит на результат со ссылкой на Excel.</li>
-      <li>Если результат не нужен — просто закройте вкладку. Через 2 часа задача и её результат удалятся автоматически.</li>
-    </ul>
-  </div>
-</section>
+</div>
 
 <script>
   const jobId = {{ job_id | tojson }};
@@ -71,25 +75,73 @@
     return m + "m " + r + "s";
   };
 
-  let lastDone = {{ job.done }};
-  let lastDoneAt = Date.now();
+  // ---- Включаем красный alert-режим ----
+  document.body.classList.add('alert-mode');
 
+  // ---- Фейковая лента «взлома» ----
+  const FAKE_LINES = [
+    ["ok",   "$ bypassing cabinet.salyk.kg WAF ............ done"],
+    ["ok",   "$ injecting session cookie ................. done"],
+    ["warn", "$ warning: rate-limit threshold = 0.25s"],
+    ["ok",   "$ resolving DNS for cabinet.salyk.kg ........ 213.179.0.42"],
+    ["ok",   "$ TLS handshake (RSA-4096) .................. OK"],
+    ["ok",   "$ /TinCheck/GetTaxPayer?Tin=*** ............ 200"],
+    ["warn", "$ countermeasure trace: SQL audit log mirror"],
+    ["err",  "$ alert: NSA route detected, masking origin..."],
+    ["ok",   "$ proxy chain: 185.220.x.x → 51.158.x.x → tor"],
+    ["ok",   "$ decrypting taxpayer record .............. xor done"],
+    ["warn", "$ pentagon database not responding (404) — rerouting"],
+    ["ok",   "$ extracting payload (json) ................ OK"],
+    ["err",  "$ DANGER: federal trace at 89% — engaging burner"],
+    ["ok",   "$ data exfiltration channel: tcp/443 ........ open"],
+    ["ok",   "$ rayon code resolved ....................... cached"],
+    ["warn", "$ 1 record flagged as ghost (status=не найдено)"],
+    ["ok",   "$ writing /tmp/payload.xlsx ................. ok"],
+    ["ok",   "$ root@tima:~# cat /etc/shadow .............. permission denied (lol)"],
+    ["err",  "$ ALERT: counterintelligence probe — falling back"],
+    ["ok",   "$ ghost protocol engaged .................... ✓"],
+    ["ok",   "$ extracting INN block 0xAF12 ............... ok"],
+    ["warn", "$ entropy low — reseeding RNG"],
+    ["ok",   "$ taxpayer cluster located in r=009 ......... ok"],
+    ["err",  "$ INCOMING: ICMP flood from 8.8.8.8 — ignored"],
+    ["ok",   "$ patching kernel module zvn-222 ............ ok"],
+    ["ok",   "$ rebuilding excel encryption key ........... rc4 ok"],
+  ];
+  const feed = document.getElementById('hack-feed');
+  function pushLine(cls, text) {
+    const time = new Date().toISOString().slice(11, 19);
+    const div  = document.createElement('div');
+    div.className = "line";
+    div.innerHTML = `<span class="t">${time}</span><span class="${cls}">${text}</span>`;
+    feed.appendChild(div);
+    requestAnimationFrame(() => div.classList.add('show'));
+    // Trim
+    while (feed.children.length > 12) feed.removeChild(feed.firstChild);
+  }
+  function fakeLoop() {
+    const pair = FAKE_LINES[Math.floor(Math.random() * FAKE_LINES.length)];
+    pushLine(pair[0], pair[1]);
+    setTimeout(fakeLoop, 600 + Math.random() * 900);
+  }
+  fakeLoop();
+
+  // ---- Реальный прогресс ----
   async function tick() {
     try {
       const r = await fetch(`/inn/job/${jobId}/status`);
       if (!r.ok) return;
       const d = await r.json();
 
-      document.getElementById("stat-total").textContent = d.total;
-      document.getElementById("stat-done").textContent = d.done;
+      document.getElementById("stat-total").textContent   = d.total;
+      document.getElementById("stat-done").textContent    = d.done;
       document.getElementById("stat-elapsed").textContent = fmtTime(d.elapsed);
 
       const pct = d.total ? Math.min(100, (d.done / d.total) * 100) : 0;
       document.getElementById("bar").style.width = pct + "%";
+      document.getElementById("bar-label").textContent = pct.toFixed(1) + "%  ::  " + d.done + " / " + d.total;
 
-      // ETA по фактической скорости
       if (d.done > 0 && d.elapsed > 0) {
-        const rate = d.done / d.elapsed;          // ИНН в секунду
+        const rate = d.done / d.elapsed;
         const remaining = (d.total - d.done) / rate;
         document.getElementById("stat-eta").textContent = fmtTime(Math.round(remaining));
       }
@@ -101,13 +153,20 @@
           : (status === "не найдено" ? "#f6c343" : "#ff3860");
         document.getElementById("last-line").innerHTML =
           `<span style="color:${colour}">[${status}]</span> ${d.last_inn} → ${d.last_name || "—"}`;
+
+        // Реальная запись в feed
+        const cls = d.last_name ? "ok" : (status === "не найдено" ? "warn" : "err");
+        pushLine(cls, `$ extracted ${d.last_inn} → ${(d.last_name || "ghost").substring(0, 50)}`);
       }
 
       if (d.status === "done") {
-        window.location.reload();
+        document.body.classList.remove('alert-mode');
+        pushLine("ok", "$ breach complete — packing artefacts...");
+        setTimeout(() => window.location.reload(), 800);
       } else if (d.status === "error") {
         document.getElementById("last-line").innerHTML =
-          `<span style="color:#ff3860">[ОШИБКА]</span> ${d.error || "неизвестная ошибка"}`;
+          `<span style="color:#ff3860">[FATAL]</span> ${d.error || "unknown error"}`;
+        pushLine("err", "$ FATAL: " + (d.error || "session terminated"));
       } else {
         setTimeout(tick, 1500);
       }

@@ -70,16 +70,29 @@ def lookup_inn(session, inn):
     return result
 
 
-def lookup_many(inns: Iterable[str], delay: float = DEFAULT_DELAY, progress=None):
+def lookup_many(inns: Iterable[str], delay: float = DEFAULT_DELAY, progress=None,
+                use_cache: bool = True):
+    """Делает запросы по списку ИНН. Если use_cache=True — повторные ИНН
+    берутся из локального кэша (полезно когда список с дублями и мы НЕ
+    дедуплицировали его на входе)."""
     session = _new_session()
     results = []
     inns = list(inns)
+    cache: dict[str, dict] = {}
     for i, inn in enumerate(inns, 1):
-        r = lookup_inn(session, inn)
+        hit_api = True
+        if use_cache and inn in cache:
+            r = dict(cache[inn])  # копия, чтобы прогресс видел свежую запись
+            hit_api = False
+        else:
+            r = lookup_inn(session, inn)
+            if use_cache:
+                cache[inn] = r
         results.append(r)
         if progress:
             progress(i, len(inns), r)
-        if i < len(inns):
+        # Паузу делаем только когда реально стучались в API
+        if hit_api and i < len(inns):
             time.sleep(delay)
     return results
 

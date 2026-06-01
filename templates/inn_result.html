@@ -1,17 +1,40 @@
 {% extends "base.html" %}
-{% block title %}INN result :: {{ total }} requests{% endblock %}
+{% block title %}EXFIL COMPLETE :: {{ total }} records{% endblock %}
 {% block content %}
 
+<div class="danger-bar no-stripes">// breach successful · {{ total }} records extracted · clean traces and disconnect</div>
+
 <section class="hero">
-  <h1>lookup_complete<span class="cursor"></span></h1>
-  <p class="lead">Запрошено ИНН: <strong>{{ total }}</strong>. Ниже разбивка по статусам.</p>
+  <h1><span class="glitch" data-text="// data exfiltration complete">// data exfiltration complete</span><span class="cursor"></span></h1>
+  <p class="lead">
+    Сессия закрыта. На входе было <strong>{{ total_input or total }}</strong>, уникальных
+    <strong>{{ unique_count or total }}</strong>{% if duplicates %}, дублей: <strong style="color:#ff5560">{{ duplicates|length }}</strong>{% endif %}.
+    {% if dedup %}
+      Режим: <strong>dedup ВКЛ</strong> — в выгрузке по одной строке на уникальный ИНН.
+    {% else %}
+      Режим: <strong>dedup ВЫКЛ</strong> — в выгрузке столько строк, сколько было на входе.
+    {% endif %}
+  </p>
 </section>
 
 <section class="card" data-title="STATS" data-host="@tima:/inn">
+  <span class="classified-stamp">DECLASSIFIED</span>
   <div class="card-body">
     <div class="stats">
       <div class="stat">
-        <div class="label">всего</div>
+        <div class="label">всего на вход</div>
+        <div class="value">{{ total_input or total }}</div>
+      </div>
+      <div class="stat">
+        <div class="label">уникальных</div>
+        <div class="value">{{ unique_count or total }}</div>
+      </div>
+      <div class="stat">
+        <div class="label">дублей</div>
+        <div class="value" style="color:{% if duplicates %}#ff5560{% else %}var(--text-bright){% endif %}; text-shadow: {% if duplicates %}0 0 6px rgba(255,0,32,0.6){% else %}var(--accent-soft-glow){% endif %};">{{ duplicates|length if duplicates else 0 }}</div>
+      </div>
+      <div class="stat">
+        <div class="label">в выгрузке</div>
         <div class="value">{{ total }}</div>
       </div>
       <div class="stat">
@@ -24,36 +47,68 @@
       </div>
       <div class="stat">
         <div class="label">ошибок</div>
-        <div class="value">{{ errors }}</div>
+        <div class="value" style="color:{% if errors %}#ff5560{% else %}var(--text-bright){% endif %};">{{ errors }}</div>
       </div>
     </div>
 
     <p class="actions" style="margin-top:18px">
-      <a class="btn btn-primary" href="{{ url_for('download', token=token) }}">↓ {{ archive_name }}</a>
-      <a class="btn btn-link" href="{{ url_for('inn_page') }}">← новый batch</a>
+      <a class="btn btn-primary" href="{{ url_for('download', token=token) }}">↓ download {{ archive_name }}</a>
+      <a class="btn btn-link" href="{{ url_for('inn_page') }}">← new batch</a>
     </p>
 
     <div class="tips">
-      <strong>// что дальше:</strong>
+      <strong>// next steps:</strong>
       <ul>
-        <li>Файл доступен ~30 минут, потом удаляется. Сохраните локально.</li>
-        <li>В Excel зелёные строки = найдено, жёлтые = не найдено, красные = ошибка сети/HTTP.</li>
-        <li>Скопируйте найденные наименования в колонку <code>C</code> шаблона PDF-генератора, а код УГНС из <code>rayon</code> — в колонку <code>D</code>.</li>
+        <li>Файл доступен ~30 минут после первого скачивания. Лучше сразу сохранить локально.</li>
+        <li>В Excel: зелёный — найдено, жёлтый — не найдено, красный — сетевая ошибка / HTTP. Красные строки можно перезапустить отдельным батчем.</li>
+        <li>Колонка <code>name</code> идёт в шаблон PDF-генератора (колонка <code>C</code>), <code>rayon</code> → колонка <code>D</code>.</li>
       </ul>
     </div>
   </div>
 </section>
 
-<section class="card muted" data-title="PREVIEW" data-host="@tima:/inn/log">
+{% if duplicates %}
+<section class="card" data-title="DUPLICATES_REPORT" data-host="@tima:/inn/dups">
+  <span class="classified-stamp" style="border-color:#ff0020; color:#ff5560">DUPS · {{ duplicates|length }}</span>
   <div class="card-body">
-    <h2>Превью результатов</h2>
+    <h2 style="color:#ff5560; text-shadow: 0 0 4px rgba(255,0,32,0.6);">⚠ Дублирующиеся ИНН во входных данных</h2>
+    <p>Эти ИНН встречались <strong>больше одного раза</strong> в вашем списке. Сумма повторов = {{ duplicates|sum(attribute=1) - duplicates|length }} лишних вхождений.
+       {% if dedup %}В режиме <em>dedup ВКЛ</em> каждый из них попал в выгрузку ровно один раз.
+       {% else %}В режиме <em>dedup ВЫКЛ</em> каждый сохранён со всеми повторами.{% endif %}</p>
+
+    <div class="dup-grid">
+      {% for inn, n in duplicates %}
+        <div class="dup-tile">
+          <code>{{ inn }}</code>
+          <span class="n">×{{ n }}</span>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="tips warn" style="margin-top:14px">
+      <strong>// что с ними делать:</strong>
+      <ul>
+        <li>В Excel: выделить колонку → <em>Данные → Удалить дубликаты</em>.</li>
+        <li>Или формула <code>=COUNTIF(A:A; A2)</code> в соседней колонке — числа &gt;1 это дубль.</li>
+        <li>Если повторы вам нужны (например, по 1 ИНН в каждом подрядчике/документе) — на следующем запуске <strong>отключите toggle</strong> и получите N IN → N OUT.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section class="card muted" data-title="PREVIEW" data-host="@tima:/inn/log">
+  <span class="classified-stamp">FOR REVIEW</span>
+  <div class="card-body">
+    <h2>Превью результатов (первые {{ rows|length if rows|length < 200 else 200 }})</h2>
     <table class="table">
       <thead>
-        <tr><th>ИНН</th><th>Наименование</th><th>Код УГНС</th><th>Статус</th></tr>
+        <tr><th>#</th><th>ИНН</th><th>Наименование</th><th>Код УГНС</th><th>Статус</th></tr>
       </thead>
       <tbody>
-      {% for r in rows %}
+      {% for r in rows[:200] %}
         <tr class="row-{% if r.name %}ok{% elif r.status == 'не найдено' %}warn{% else %}err{% endif %}">
+          <td>{{ loop.index }}</td>
           <td><code>{{ r.inn }}</code></td>
           <td>{{ r.name }}</td>
           <td>{{ r.rayon }}</td>
@@ -62,6 +117,9 @@
       {% endfor %}
       </tbody>
     </table>
+    {% if rows|length > 200 %}
+      <p class="hint" style="margin-top:10px">Показано 200 из {{ rows|length }} — остальное в Excel.</p>
+    {% endif %}
   </div>
 </section>
 

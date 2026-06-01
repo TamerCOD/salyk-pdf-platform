@@ -9,6 +9,7 @@ import re
 import time
 import uuid
 import zipfile
+from collections import Counter
 from pathlib import Path
 from threading import Lock, Thread
 
@@ -86,8 +87,9 @@ def _run_inn_job(job_id: str, inns: list[str]):
             job["last_status"] = r["status"]
 
     try:
+        # use_cache=True — даже если на входе дубли, в ГНС каждый ИНН идёт 1 раз
         results = inn_lookup.lookup_many(inns, delay=inn_lookup.DEFAULT_DELAY,
-                                         progress=on_progress)
+                                         progress=on_progress, use_cache=True)
         xlsx_bytes = inn_lookup.build_results_xlsx(results)
         fname = f"inn_results_{int(time.time())}.xlsx"
         token = _store_file(
@@ -256,34 +258,45 @@ def inn_page():
 
 @app.route("/inn/lookup", methods=["POST"])
 def inn_lookup_route():
-    inns = []
+    raw_inns: list[str] = []
     text_input = request.form.get("inns_text", "")
     if text_input:
-        inns.extend(inn_lookup.parse_inn_list_from_text(text_input))
+        raw_inns.extend(inn_lookup.parse_inn_list_from_text(text_input))
 
     if "excel" in request.files and request.files["excel"].filename:
         try:
             xls = request.files["excel"].read()
-            inns.extend(inn_lookup.parse_inn_list_from_excel(xls))
+            raw_inns.extend(inn_lookup.parse_inn_list_from_excel(xls))
         except Exception as e:
             flash(f"Не удалось прочитать Excel: {e}", "error")
             return redirect(url_for("inn_page"))
 
-    # Удалить дубли с сохранением порядка
-    seen = set()
-    unique = []
-    for x in inns:
-        if x not in seen:
-            seen.add(x)
-            unique.append(x)
-    inns = unique
-
-    if not inns:
+    if not raw_inns:
         flash("Не нашёл ни одного валидного ИНН (нужно 10+ цифр).", "error")
         return redirect(url_for("inn_page"))
 
+    # Сбор статистики ДО дедупа — чтобы показать сколько было дублей.
+    counter = Counter(raw_inns)
+    duplicates = sorted(
+        [(inn, n) for inn, n in counter.items() if n > 1],
+        key=lambda x: -x[1],
+    )
+    total_input = len(raw_inns)
+    unique_count = len(counter)
+
+    # Чекбокс: если включён — дедуплицируем (один ИНН → одна строка результата).
+    # Если выключен — оставляем все вхождения, в результат идёт каждая исходная строка.
+    dedup_flag = request.form.get("dedup", "on") == "on"
+
+    if dedup_flag:
+        # Уникальные, с сохранением порядка
+        inns = list(dict.fromkeys(raw_inns))
+    else:
+        inns = list(raw_inns)
+
     if len(inns) > _INN_MAX:
-        flash(f"Слишком много ИНН за раз (макс. {_INN_MAX}). Разбейте на части.", "error")
+        flash(f"Слишком много ИНН за раз (макс. {_INN_MAX}). Разбейте на части. "
+              f"Сейчас передано: {len(inns)}.", "error")
         return redirect(url_for("inn_page"))
 
     _cleanup_jobs()
@@ -298,6 +311,10 @@ def inn_lookup_route():
             "last_inn": "",
             "last_name": "",
             "last_status": "",
+            "dedup": dedup_flag,
+            "total_input": total_input,
+            "unique_count": unique_count,
+            "duplicates": duplicates,
         }
     t = Thread(target=_run_inn_job, args=(job_id, inns), daemon=True)
     t.start()
@@ -322,6 +339,10 @@ def inn_job_page(job_id):
             not_found=job_snapshot["not_found"],
             errors=job_snapshot["errors"],
             rows=job_snapshot["results"],
+            dedup=job_snapshot.get("dedup", True),
+            total_input=job_snapshot.get("total_input", 0),
+            unique_count=job_snapshot.get("unique_count", 0),
+            duplicates=job_snapshot.get("duplicates", []),
         )
     return render_template("inn_job.html", job_id=job_id, job=job_snapshot)
 

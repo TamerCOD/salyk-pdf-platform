@@ -95,9 +95,13 @@ body::before {
 .topbar, main, .footer { position: relative; z-index: 5; }
 
 .container {
-  max-width: 980px;
+  max-width: 1480px;
   margin: 0 auto;
-  padding: 0 22px;
+  padding: 0 32px;
+}
+.container-narrow {
+  max-width: 1000px;
+  margin: 0 auto;
 }
 
 /* --- Top bar ----------------------------------------------------------- */
@@ -514,3 +518,253 @@ code {
   .card-body { padding: 14px 16px; }
   .watermark span { font-size: clamp(50px, 22vw, 130px); }
 }
+
+/* ===========================================================
+   P E N T A G O N   H A C K   M O D E
+   Red alert lamps, classified stamps, glitch, danger bars.
+   =========================================================== */
+
+/* Двухколоночная сетка для широких страниц */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 22px;
+}
+@media (max-width: 1100px) {
+  .grid-2 { grid-template-columns: 1fr; }
+}
+
+/* Красная мигающая лампа тревоги (по углам экрана) */
+.alert-lamp {
+  position: fixed;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #ff5560 0%, #ff0020 60%, #6b0010 100%);
+  box-shadow: 0 0 18px #ff0020, 0 0 40px rgba(255, 0, 32, 0.7), inset 0 0 6px rgba(255,255,255,0.3);
+  z-index: 50;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.alert-lamp.tl { top: 70px; left: 20px; }
+.alert-lamp.tr { top: 70px; right: 20px; }
+.alert-lamp.bl { bottom: 30px; left: 20px; }
+.alert-lamp.br { bottom: 30px; right: 20px; }
+
+body.alert-mode .alert-lamp {
+  opacity: 1;
+  animation: lamp-blink 0.8s infinite alternate;
+}
+body.alert-mode .alert-lamp.tr { animation-delay: 0.1s; }
+body.alert-mode .alert-lamp.bl { animation-delay: 0.2s; }
+body.alert-mode .alert-lamp.br { animation-delay: 0.3s; }
+
+@keyframes lamp-blink {
+  from { opacity: 1; box-shadow: 0 0 28px #ff0020, 0 0 60px rgba(255, 0, 32, 0.9); transform: scale(1.05); }
+  to   { opacity: 0.35; box-shadow: 0 0 8px #ff0020; transform: scale(0.95); }
+}
+
+/* Тонкая красная пульсация по краям всего viewport-а в alert-режиме */
+body.alert-mode::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  box-shadow: inset 0 0 60px rgba(255, 0, 32, 0.45),
+              inset 0 0 180px rgba(255, 0, 32, 0.18);
+  animation: edge-pulse 1.4s infinite alternate;
+}
+@keyframes edge-pulse {
+  from { box-shadow: inset 0 0 60px rgba(255, 0, 32, 0.45),
+                     inset 0 0 180px rgba(255, 0, 32, 0.18); }
+  to   { box-shadow: inset 0 0 100px rgba(255, 0, 32, 0.7),
+                     inset 0 0 240px rgba(255, 0, 32, 0.3); }
+}
+
+/* Полоса CLASSIFIED / TOP SECRET */
+.danger-bar {
+  background: repeating-linear-gradient(
+    -45deg,
+    #1a0006 0, #1a0006 18px,
+    #ff0020 18px, #ff0020 36px
+  );
+  color: #fff;
+  text-align: center;
+  padding: 8px 12px;
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  border: 1px solid #ff0020;
+  margin-bottom: 22px;
+  text-shadow: 0 0 6px #000, 0 0 2px #000;
+  position: relative;
+  overflow: hidden;
+}
+.danger-bar.no-stripes {
+  background: rgba(255, 0, 32, 0.1);
+  color: #ff5560;
+  text-shadow: 0 0 6px rgba(255, 0, 32, 0.6);
+}
+
+/* Большой «штамп» CLASSIFIED наискосок */
+.classified-stamp {
+  position: absolute;
+  top: 8px;
+  right: 14px;
+  transform: rotate(8deg);
+  border: 2px solid #ff0020;
+  color: #ff0020;
+  padding: 4px 12px;
+  font-weight: 900;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-shadow: 0 0 5px rgba(255, 0, 32, 0.6);
+  box-shadow: 0 0 10px rgba(255, 0, 32, 0.3);
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 6;
+  pointer-events: none;
+}
+.card { position: relative; }
+
+/* Glitch-эффект для крупных заголовков */
+.glitch {
+  position: relative;
+  display: inline-block;
+}
+.glitch::before, .glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  opacity: 0.85;
+  mix-blend-mode: screen;
+}
+.glitch::before {
+  color: #ff0020;
+  text-shadow: 0 0 4px #ff0020;
+  animation: glitch-shift-1 2.2s infinite linear alternate-reverse;
+}
+.glitch::after {
+  color: #00b3ff;
+  text-shadow: 0 0 4px #00b3ff;
+  animation: glitch-shift-2 1.9s infinite linear alternate-reverse;
+}
+@keyframes glitch-shift-1 {
+  0%, 100% { clip-path: inset(0 0 85% 0); transform: translate(-1px, 0); }
+  25%      { clip-path: inset(40% 0 40% 0); transform: translate(2px, -1px); }
+  50%      { clip-path: inset(70% 0 5% 0);  transform: translate(-2px, 1px); }
+  75%      { clip-path: inset(20% 0 65% 0); transform: translate(1px, 0); }
+}
+@keyframes glitch-shift-2 {
+  0%, 100% { clip-path: inset(75% 0 5% 0);  transform: translate(1px, 0); }
+  30%      { clip-path: inset(20% 0 65% 0); transform: translate(-2px, 1px); }
+  60%      { clip-path: inset(50% 0 30% 0); transform: translate(2px, -1px); }
+  90%      { clip-path: inset(5% 0 80% 0);  transform: translate(-1px, 0); }
+}
+
+/* Лента «бегущих» статусов взлома */
+.hack-feed {
+  margin: 18px 0 6px;
+  padding: 14px 16px;
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid var(--border);
+  border-left: 3px solid #ff0020;
+  font-family: var(--mono);
+  font-size: 13px;
+  height: 180px;
+  overflow: hidden;
+  position: relative;
+}
+.hack-feed::before {
+  content: "[ live feed ]";
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  color: #ff5560;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  animation: lamp-blink 1s infinite alternate;
+}
+.hack-feed .line { margin-bottom: 4px; opacity: 0; transform: translateY(8px); }
+.hack-feed .line.show { opacity: 1; transform: translateY(0); transition: all 0.3s; }
+.hack-feed .line .t  { color: var(--text-dim); margin-right: 6px; }
+.hack-feed .line .ok  { color: #00ff41; }
+.hack-feed .line .warn{ color: #f6c343; }
+.hack-feed .line .err { color: #ff5560; }
+
+/* Дублики таблица */
+.dup-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 6px;
+  margin-top: 12px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.dup-tile {
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.4);
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+.dup-tile code { background: transparent; border: none; padding: 0; }
+.dup-tile .n {
+  color: #ff5560;
+  font-weight: 700;
+  text-shadow: 0 0 4px rgba(255, 0, 32, 0.6);
+  letter-spacing: 0.6px;
+}
+
+/* Прогресс-бар в alert-режиме — красный gradient */
+body.alert-mode #bar {
+  background: linear-gradient(90deg, #330000, #ff0020) !important;
+  box-shadow: 0 0 14px #ff0020 !important;
+}
+
+/* Toggle switch */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+.toggle input { display: none; }
+.toggle .slider {
+  position: relative;
+  width: 44px;
+  height: 22px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: all 0.2s;
+}
+.toggle .slider::after {
+  content: "";
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 16px; height: 16px;
+  background: var(--text-dim);
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+.toggle input:checked + .slider {
+  border-color: var(--border-bright);
+  background: rgba(0, 255, 65, 0.15);
+  box-shadow: var(--accent-soft-glow);
+}
+.toggle input:checked + .slider::after {
+  left: 24px;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+.toggle .text { color: var(--text-bright); text-shadow: var(--accent-soft-glow); }
+.toggle.off .slider { border-color: #ff5560; box-shadow: 0 0 6px rgba(255, 0, 32, 0.5); }
+.toggle.off .text { color: #ff5560; text-shadow: 0 0 4px rgba(255, 0, 32, 0.6); }

@@ -2,8 +2,10 @@
 {% block title %}./pdf — ZVN-222 generator{% endblock %}
 {% block content %}
 
+<div class="danger-bar">⚠ form ZVN STI-222 // auto-fill engine · clearance level 2 · do not modify column order ⚠</div>
+
 <section class="hero">
-  <h1>ZVN STI-222 :: auto-fill engine<span class="cursor"></span></h1>
+  <h1><span class="glitch" data-text="// document forgery module">// document forgery module</span><span class="cursor"></span></h1>
   <p class="lead">
     Загрузите Excel-файл — система сгенерирует отдельный заполненный PDF на каждую
     строку. Опционально — склейка PDF по выбранной колонке (например, все строки
@@ -11,7 +13,10 @@
   </p>
 </section>
 
+<div class="grid-2">
+
 <section class="card" data-title="STEP_01" data-host="@tima:/templates">
+  <span class="classified-stamp">CLASSIFIED</span>
   <div class="card-body">
     <h2>Скачать шаблон Excel</h2>
     <p>Структура колонок <code>A..U</code> зафиксирована. Не переименовывайте и не меняйте порядок —
@@ -34,6 +39,7 @@
 </section>
 
 <section class="card" data-title="STEP_02" data-host="@tima:/generate">
+  <span class="classified-stamp">RESTRICTED</span>
   <div class="card-body">
     <h2>Загрузить заполненный Excel</h2>
     <form action="{{ url_for('generate') }}" method="post" enctype="multipart/form-data">
@@ -86,7 +92,10 @@
   </div>
 </section>
 
+</div>
+
 <section class="card muted" data-title="MANUAL" data-host="@tima:/help">
+  <span class="classified-stamp">EYES ONLY</span>
   <div class="card-body">
     <h2>Как это работает (под капотом)</h2>
     <ol>
