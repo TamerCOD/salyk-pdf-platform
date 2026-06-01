@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}INN job :: {{ job.done }}/{{ job.total }}{% endblock %}
+{% block content %}
+
+<section class="hero">
+  <h1>processing_inn_batch<span class="cursor"></span></h1>
+  <p class="lead">
+    Запрос отправлен в очередь. ИНН опрашиваются по одному с паузой ~0.25 сек, чтобы
+    не словить бан от ГНС. Эту вкладку <strong>можно не закрывать</strong> — страница сама обновится,
+    когда задача завершится.
+  </p>
+</section>
+
+<section class="card" data-title="JOB" data-host="@tima:/inn/job">
+  <div class="card-body">
+    <h2>Прогресс</h2>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="label">всего</div>
+        <div class="value" id="stat-total">{{ job.total }}</div>
+      </div>
+      <div class="stat">
+        <div class="label">обработано</div>
+        <div class="value" id="stat-done">{{ job.done }}</div>
+      </div>
+      <div class="stat">
+        <div class="label">осталось ~</div>
+        <div class="value" id="stat-eta">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">прошло</div>
+        <div class="value" id="stat-elapsed">0s</div>
+      </div>
+    </div>
+
+    <div style="margin: 18px 0; height: 16px; background: rgba(0,0,0,0.6); border: 1px solid var(--border); border-radius: 2px; overflow: hidden;">
+      <div id="bar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #003300, #00ff41); box-shadow: 0 0 10px #00ff41; transition: width 0.4s;"></div>
+    </div>
+
+    <div class="tips">
+      <strong>// последняя обработанная запись:</strong>
+      <div id="last-line" style="margin-top:6px; font-family: var(--mono); color: var(--text-bright); text-shadow: var(--accent-soft-glow); word-break: break-word;">
+        ожидание первого ответа…
+      </div>
+    </div>
+
+    <p class="actions" style="margin-top:18px">
+      <a class="btn btn-link" href="{{ url_for('inn_page') }}">← вернуться (задача продолжит работать в фоне)</a>
+    </p>
+  </div>
+</section>
+
+<section class="card muted" data-title="INFO" data-host="@tima:/help">
+  <div class="card-body">
+    <h2>Что важно знать</h2>
+    <ul>
+      <li>Задача исполняется на сервере в фоне. Закроете вкладку — обработка не остановится. Вернитесь по этой же ссылке (она в адресной строке) — увидите свежий прогресс.</li>
+      <li>Время оценочное: ≈0.4–0.6 секунды на каждый ИНН (пауза + запрос). На 3000 ИНН — около 20–30 минут.</li>
+      <li>Когда задача закончится, страница автоматически перебросит на результат со ссылкой на Excel.</li>
+      <li>Если результат не нужен — просто закройте вкладку. Через 2 часа задача и её результат удалятся автоматически.</li>
+    </ul>
+  </div>
+</section>
+
+<script>
+  const jobId = {{ job_id | tojson }};
+  const fmtTime = (s) => {
+    if (s < 60) return s + "s";
+    const m = Math.floor(s / 60), r = s % 60;
+    return m + "m " + r + "s";
+  };
+
+  let lastDone = {{ job.done }};
+  let lastDoneAt = Date.now();
+
+  async function tick() {
+    try {
+      const r = await fetch(`/inn/job/${jobId}/status`);
+      if (!r.ok) return;
+      const d = await r.json();
+
+      document.getElementById("stat-total").textContent = d.total;
+      document.getElementById("stat-done").textContent = d.done;
+      document.getElementById("stat-elapsed").textContent = fmtTime(d.elapsed);
+
+      const pct = d.total ? Math.min(100, (d.done / d.total) * 100) : 0;
+      document.getElementById("bar").style.width = pct + "%";
+
+      // ETA по фактической скорости
+      if (d.done > 0 && d.elapsed > 0) {
+        const rate = d.done / d.elapsed;          // ИНН в секунду
+        const remaining = (d.total - d.done) / rate;
+        document.getElementById("stat-eta").textContent = fmtTime(Math.round(remaining));
+      }
+
+      if (d.last_inn) {
+        const status = d.last_status || "ok";
+        const colour = d.last_name
+          ? "#00ff41"
+          : (status === "не найдено" ? "#f6c343" : "#ff3860");
+        document.getElementById("last-line").innerHTML =
+          `<span style="color:${colour}">[${status}]</span> ${d.last_inn} → ${d.last_name || "—"}`;
+      }
+
+      if (d.status === "done") {
+        window.location.reload();
+      } else if (d.status === "error") {
+        document.getElementById("last-line").innerHTML =
+          `<span style="color:#ff3860">[ОШИБКА]</span> ${d.error || "неизвестная ошибка"}`;
+      } else {
+        setTimeout(tick, 1500);
+      }
+    } catch (e) {
+      setTimeout(tick, 3000);
+    }
+  }
+  tick();
+</script>
+
+{% endblock %}

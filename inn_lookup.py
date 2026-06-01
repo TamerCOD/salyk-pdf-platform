@@ -23,7 +23,7 @@ HEADERS = {
     "Accept":          "application/json, text/plain, */*",
     "Accept-Language": "ru-RU,ru;q=0.9",
 }
-DEFAULT_DELAY = 0.4
+DEFAULT_DELAY = 0.25
 
 
 def _new_session():

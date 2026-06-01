@@ -10,7 +10,7 @@ import time
 import uuid
 import zipfile
 from pathlib import Path
-from threading import Lock
+from threading import Lock, Thread
 
 from flask import (
     Flask, render_template, request, send_file, redirect,
@@ -35,6 +35,12 @@ _FILES: dict[str, dict] = {}
 _FILES_LOCK = Lock()
 _FILE_TTL = 30 * 60  # 30 минут
 
+# Фоновые задачи ИНН-парсера. Только in-process (требует 1 worker).
+_JOBS: dict[str, dict] = {}
+_JOBS_LOCK = Lock()
+_JOB_TTL = 2 * 60 * 60  # 2 часа
+_INN_MAX = 3000
+
 
 def _cleanup_expired():
     now = time.time()
@@ -55,6 +61,59 @@ def _store_file(filename: str, data: bytes, mimetype: str) -> str:
             "expires": time.time() + _FILE_TTL,
         }
     return token
+
+
+def _cleanup_jobs():
+    now = time.time()
+    with _JOBS_LOCK:
+        expired = [k for k, v in _JOBS.items() if v["expires"] < now]
+        for k in expired:
+            _JOBS.pop(k, None)
+
+
+def _run_inn_job(job_id: str, inns: list[str]):
+    """Фоновое исполнение. Обновляет _JOBS[job_id]."""
+    results = []
+
+    def on_progress(i, total, r):
+        with _JOBS_LOCK:
+            job = _JOBS.get(job_id)
+            if not job:
+                return
+            job["done"] = i
+            job["last_inn"] = r["inn"]
+            job["last_name"] = r["name"][:60]
+            job["last_status"] = r["status"]
+
+    try:
+        results = inn_lookup.lookup_many(inns, delay=inn_lookup.DEFAULT_DELAY,
+                                         progress=on_progress)
+        xlsx_bytes = inn_lookup.build_results_xlsx(results)
+        fname = f"inn_results_{int(time.time())}.xlsx"
+        token = _store_file(
+            fname, xlsx_bytes,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        found = sum(1 for r in results if r["name"])
+        not_found = sum(1 for r in results if r["status"] == "не найдено")
+        errors = len(results) - found - not_found
+        with _JOBS_LOCK:
+            job = _JOBS.get(job_id)
+            if job:
+                job["status"] = "done"
+                job["finished_at"] = time.time()
+                job["results"] = results
+                job["found"] = found
+                job["not_found"] = not_found
+                job["errors"] = errors
+                job["file_token"] = token
+                job["file_name"] = fname
+    except Exception as e:
+        with _JOBS_LOCK:
+            job = _JOBS.get(job_id)
+            if job:
+                job["status"] = "error"
+                job["error"] = str(e)[:300]
 
 
 @app.route("/")
@@ -223,33 +282,66 @@ def inn_lookup_route():
         flash("Не нашёл ни одного валидного ИНН (нужно 10+ цифр).", "error")
         return redirect(url_for("inn_page"))
 
-    if len(inns) > 500:
-        flash("Слишком много ИНН за раз (макс. 500). Разбейте на части.", "error")
+    if len(inns) > _INN_MAX:
+        flash(f"Слишком много ИНН за раз (макс. {_INN_MAX}). Разбейте на части.", "error")
         return redirect(url_for("inn_page"))
 
-    results = inn_lookup.lookup_many(inns, delay=0.4)
-    xlsx_bytes = inn_lookup.build_results_xlsx(results)
-    fname = f"inn_results_{int(time.time())}.xlsx"
-    token = _store_file(
-        fname,
-        xlsx_bytes,
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
+    _cleanup_jobs()
+    job_id = uuid.uuid4().hex
+    with _JOBS_LOCK:
+        _JOBS[job_id] = {
+            "status": "running",
+            "total": len(inns),
+            "done": 0,
+            "started_at": time.time(),
+            "expires": time.time() + _JOB_TTL,
+            "last_inn": "",
+            "last_name": "",
+            "last_status": "",
+        }
+    t = Thread(target=_run_inn_job, args=(job_id, inns), daemon=True)
+    t.start()
+    return redirect(url_for("inn_job_page", job_id=job_id))
 
-    found = sum(1 for r in results if r["name"])
-    not_found = sum(1 for r in results if r["status"] == "не найдено")
-    errors = len(results) - found - not_found
 
-    return render_template(
-        "inn_result.html",
-        token=token,
-        archive_name=fname,
-        total=len(results),
-        found=found,
-        not_found=not_found,
-        errors=errors,
-        rows=results,
-    )
+@app.route("/inn/job/<job_id>")
+def inn_job_page(job_id):
+    _cleanup_jobs()
+    with _JOBS_LOCK:
+        job = _JOBS.get(job_id)
+        if not job:
+            abort(404)
+        job_snapshot = dict(job)
+    if job_snapshot["status"] == "done":
+        return render_template(
+            "inn_result.html",
+            token=job_snapshot["file_token"],
+            archive_name=job_snapshot["file_name"],
+            total=len(job_snapshot["results"]),
+            found=job_snapshot["found"],
+            not_found=job_snapshot["not_found"],
+            errors=job_snapshot["errors"],
+            rows=job_snapshot["results"],
+        )
+    return render_template("inn_job.html", job_id=job_id, job=job_snapshot)
+
+
+@app.route("/inn/job/<job_id>/status")
+def inn_job_status(job_id):
+    with _JOBS_LOCK:
+        job = _JOBS.get(job_id)
+        if not job:
+            return jsonify({"error": "not_found"}), 404
+        return jsonify({
+            "status": job["status"],
+            "total": job["total"],
+            "done": job["done"],
+            "last_inn": job.get("last_inn", ""),
+            "last_name": job.get("last_name", ""),
+            "last_status": job.get("last_status", ""),
+            "error": job.get("error"),
+            "elapsed": int(time.time() - job["started_at"]),
+        })
 
 
 @app.route("/health")

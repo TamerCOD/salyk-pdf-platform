@@ -19,5 +19,6 @@ COPY . .
 ENV PORT=8080
 EXPOSE 8080
 
-# 2 worker, 4 threads, длинный timeout для ИНН-парсера который может работать минуты
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 2 --threads 4 --timeout 600 app:app"]
+# 1 worker (in-memory job store для ИНН-парсера требует одного процесса), 8 threads.
+# Timeout 120s — фоновая обработка ИНН живёт в Thread'е и не зависит от request timeout.
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 1 --threads 8 --timeout 120 app:app"]
